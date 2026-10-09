@@ -1,0 +1,21 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    resolver 127.0.0.11 valid=5s ipv6=off;
+
+    location = /backends/java/health {
+        set $upstream "${ERBAS_JAVA_UPSTREAM}";
+        proxy_pass http://$upstream/health;
+        include /etc/nginx/health-proxy.conf;
+    }
+    location = /backends/dotnet/health {
+        set $upstream "${ERBAS_DOTNET_UPSTREAM}";
+        proxy_pass http://$upstream/health;
+        include /etc/nginx/health-proxy.conf;
+    }
+    location = /proxy-error { internal; return 502; }
+    location /backends/ { return 404; }
+    location / { try_files $uri $uri/ /index.html; }
+}

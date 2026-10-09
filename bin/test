@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+image="erbas-client-tests-${BASHPID}-${RANDOM}"
+trap 'docker image rm "$image" >/dev/null' EXIT
+docker build --target test --tag "$image" "$root"
+docker run --rm "$image"

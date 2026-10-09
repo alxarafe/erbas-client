@@ -1,0 +1,56 @@
+<main>
+  <header>
+    <p class="eyebrow">SHARED CLIENT · WEB-001</p>
+    <h1>ERBAS</h1>
+    <p>One executable contract. Multiple interchangeable implementations.</p>
+  </header>
+  <section aria-labelledby="backend-heading">
+    <h2 id="backend-heading">Backend</h2>
+    <label for="backend">Choose an implementation</label>
+    <select id="backend" [value]="selection.selected().id" (change)="select($event)">
+      @for (backend of backends; track backend.id) {
+        <option [value]="backend.id">{{ backend.name }}</option>
+      }
+    </select>
+    <h3>{{ selection.selected().name }}</h3>
+    <dl>
+      <dt>Repository</dt>
+      <dd>
+        <a [href]="'https://github.com/' + selection.selected().repository">{{
+          selection.selected().repository
+        }}</a>
+      </dd>
+      <dt>Development endpoint</dt>
+      <dd>{{ selection.selected().baseUrl }}</dd>
+    </dl>
+    <div class="health" aria-live="polite" aria-atomic="true">
+      <span class="label">Health</span>
+      <strong [class]="state()"
+        >●
+        {{
+          state() === 'online' ? 'ONLINE' : state() === 'checking' ? 'CHECKING' : 'OFFLINE / ERROR'
+        }}</strong
+      >
+      @if (state() === 'online') {
+        <p>
+          Response <code>{{ '{"status":"ok"}' }}</code>
+        </p>
+      }
+      @if (state() === 'error') {
+        <p>
+          The backend is unavailable or returned an invalid Health response. Check that it is
+          running, then try again.
+        </p>
+      }
+      @if (lastChecked()) {
+        <p class="timing">
+          Last checked {{ lastChecked() | date: 'mediumTime' }} · {{ duration() }} ms
+        </p>
+      }
+    </div>
+    <button type="button" (click)="check()" [disabled]="state() === 'checking'">
+      {{ state() === 'checking' ? 'Checking…' : 'Check again' }}
+    </button>
+  </section>
+  <footer>Health checks only. Authentication is not part of WEB-001.</footer>
+</main>

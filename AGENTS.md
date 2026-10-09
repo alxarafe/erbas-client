@@ -1,7 +1,7 @@
 # Client working agreement
 
-The Angular application and Docker runtime are not implemented. Do not create
-placeholder applications or containers. WEB-001 owns the actual client and
+WEB-001 implements the Angular application and Docker runtime. Do not create
+placeholder applications or containers. The client owns
 `ERBAS_CLIENT_PORT` mapping: default loopback host port 48082 to container port 80.
 Follow the common convention in `erbas-contract/docs/development-ports.md`.
 

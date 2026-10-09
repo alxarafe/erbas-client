@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Shared development orchestration helpers; sourced by demo-*.
+demo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "Required host command not found: $1"
+}
+
+resolve_repositories() {
+    local script="$1" candidate
+    java_dir="${ERBAS_JAVA_DIR:-$demo_root/../erbas}"
+    dotnet_dir="${ERBAS_DOTNET_DIR:-$demo_root/../alxarafe-dotnet}"
+    for candidate in "$java_dir" "$dotnet_dir" "$demo_root"; do
+        [[ -d "$candidate" ]] || fail "Repository directory does not exist: $candidate"
+        [[ -x "$candidate/bin/$script" ]] || fail "Expected executable owner script: $candidate/bin/$script"
+    done
+    java_dir="$(cd "$java_dir" && pwd -P)"
+    dotnet_dir="$(cd "$dotnet_dir" && pwd -P)"
+}
+
+set_urls() {
+    java_url="http://127.0.0.1:${ERBAS_JAVA_PORT:-48080}/health"
+    dotnet_url="http://127.0.0.1:${ERBAS_DOTNET_PORT:-48081}/health"
+    client_url="http://127.0.0.1:${ERBAS_CLIENT_PORT:-48082}"
+}
+
+http_available() {
+    local status
+    status="$(curl --silent --show-error --noproxy '*' --connect-timeout 2 --max-time 5 \
+        --output /dev/null --write-out '%{http_code}' "$1")" || return 1
+    [[ "$status" == 200 ]]
+}
+
+wait_for_http() {
+    local label="$1" url="$2" deadline=$((SECONDS + 90))
+    printf 'Waiting for %s: %s\n' "$label" "$url"
+    until http_available "$url" 2>/dev/null; do
+        (( SECONDS < deadline )) || fail "$label did not return HTTP 200 within 90 seconds: $url. Started services are left running; inspect owner logs or use bin/demo-down."
+        sleep 2
+    done
+    printf 'OK: %s — %s\n' "$label" "$url"
+}
+
+run_owner() {
+    local label="$1" directory="$2" script="$3"
+    printf '%s: %s/bin/%s\n' "$label" "$directory" "$script"
+    (cd "$directory" && "./bin/$script") || fail "$label bin/$script failed. Started services are left running; inspect owner logs or use bin/demo-down."
+}
