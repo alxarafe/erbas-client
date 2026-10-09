@@ -15,6 +15,16 @@ server {
         proxy_pass http://$upstream/health;
         include /etc/nginx/health-proxy.conf;
     }
+    location = /backends/java/api/auth/login {
+        set $upstream "${ERBAS_JAVA_UPSTREAM}";
+        proxy_pass http://$upstream/api/auth/login;
+        include /etc/nginx/auth-proxy.conf;
+    }
+    location = /backends/dotnet/api/auth/login {
+        set $upstream "${ERBAS_DOTNET_UPSTREAM}";
+        proxy_pass http://$upstream/api/auth/login;
+        include /etc/nginx/auth-proxy.conf;
+    }
     location = /proxy-error { internal; return 502; }
     location /backends/ { return 404; }
     location / { try_files $uri $uri/ /index.html; }

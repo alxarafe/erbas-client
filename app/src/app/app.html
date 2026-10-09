@@ -1,6 +1,6 @@
 <main>
   <header>
-    <p class="eyebrow">SHARED CLIENT · WEB-001</p>
+    <p class="eyebrow">SHARED CLIENT · WEB-002</p>
     <h1>ERBAS</h1>
     <p>One executable contract. Multiple interchangeable implementations.</p>
   </header>
@@ -52,5 +52,36 @@
       {{ state() === 'checking' ? 'Checking…' : 'Check again' }}
     </button>
   </section>
-  <footer>Health checks only. Authentication is not part of WEB-001.</footer>
+  <section class="authentication" aria-labelledby="auth-heading">
+    <h2 id="auth-heading">Authentication</h2>
+    <p class="timing">
+      Default demo credentials (development only; never use in production):<br />
+      Try with user: <code>reader&#64;example.test</code> and password:
+      <code>Reader_dev_only_123!</code>.
+    </p>
+    <div aria-live="polite" aria-atomic="true">
+      @if (authenticated()) {
+        <p>Authenticated · {{ selection.selected().name }}</p>
+      } @else {
+        <p>{{ loginMessages[loginState()] }}</p>
+      }
+    </div>
+    <form
+      novalidate
+      (submit)="login($event, email, password)"
+      [attr.aria-busy]="loginState() === 'submitting'"
+    >
+      <label for="email">Email</label>
+      <input #email id="email" type="email" autocomplete="username" required />
+      <label for="password">Password</label>
+      <input #password id="password" type="password" autocomplete="current-password" required />
+      <button type="submit" [disabled]="loginState() === 'submitting'">
+        {{ loginState() === 'submitting' ? 'Signing in…' : 'Sign in' }}
+      </button>
+    </form>
+    @if (authenticated()) {
+      <p>Clear session discards this browser's local session only.</p>
+      <button type="button" (click)="clearSession()">Clear session</button>
+    }
+  </section>
 </main>

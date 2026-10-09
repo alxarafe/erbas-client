@@ -4,6 +4,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/demo-common"
 require_command curl
 require_command python3
 set_urls
+set_demo_identity
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 failed=0
@@ -62,5 +63,59 @@ else
 fi
 check_health 'Client → Java Health' "$client_url/backends/java/health"
 check_health 'Client → .NET Health' "$client_url/backends/dotnet/health"
+check_login() {
+    local backend="$1" outcome="$2"
+    if python3 - "$client_url/backends/$backend/api/auth/login" "$outcome" <<'PYLOGIN'
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+try:
+    password = os.environ["ERBAS_DEMO_PASSWORD"]
+    if sys.argv[2] == "denied":
+        password += "-WEB-002-deliberately-incorrect"
+    payload = json.dumps({"email": os.environ["ERBAS_DEMO_EMAIL"], "password": password}).encode()
+    request = urllib.request.Request(sys.argv[1], data=payload, headers={
+        "Content-Type": "application/json", "Accept": "application/json"})
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    try:
+        response = opener.open(request, timeout=7)
+    except urllib.error.HTTPError as error:
+        response = error
+    with response:
+        status = response.status
+        headers = response.headers
+        body = json.loads(response.read())
+    assert headers.get_content_type().lower() == "application/json"
+    if sys.argv[2] == "success":
+        assert status == 200
+        assert isinstance(body, dict) and set(body) == {"accessToken"}
+        assert isinstance(body["accessToken"], str) and len(body["accessToken"]) > 0
+        assert headers.get("Cache-Control") == "no-store"
+    else:
+        assert status == 401
+        assert body == {"code": "invalid_credentials"}
+        assert headers.get("WWW-Authenticate") == "Bearer"
+except Exception:
+    # Do not print exceptions, headers, credentials or response content.
+    print("ERROR: real login proxy verification failed.", file=sys.stderr)
+    sys.exit(1)
+PYLOGIN
+    then
+        printf 'OK: Client → %s login (%s)\n' "$backend" "$outcome"
+    else
+        printf 'ERROR: Client → %s login (%s) failed.\n' "$backend" "$outcome" >&2
+        failed=1
+    fi
+}
+for backend in java dotnet; do
+    check_login "$backend" success
+    check_login "$backend" denied
+done
 (( failed == 0 )) || exit 1
-printf 'DEMO CHECK PASS: real backend Health contracts, client HTTP and both proxies.\n'
+printf 'DEMO CHECK PASS: real backend Health, client HTTP and both login proxies (200/401 and headers).\n'

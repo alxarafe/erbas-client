@@ -48,3 +48,10 @@ run_owner() {
     printf '%s: %s/bin/%s\n' "$label" "$directory" "$script"
     (cd "$directory" && "./bin/$script") || fail "$label bin/$script failed. Started services are left running; inspect owner logs or use bin/demo-down."
 }
+
+set_demo_identity() {
+    # Public .NET Catalog seed credentials: development/demo only, never production.
+    export ERBAS_DEMO_EMAIL="${ERBAS_DEMO_EMAIL:-reader@example.test}"
+    export ERBAS_DEMO_PASSWORD="${ERBAS_DEMO_PASSWORD:-Reader_dev_only_123!}"
+    [[ -n "$ERBAS_DEMO_EMAIL" && -n "$ERBAS_DEMO_PASSWORD" ]] || fail 'Demo credentials must be nonempty.'
+}
