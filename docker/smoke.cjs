@@ -25,6 +25,32 @@ const assert = require('node:assert/strict');
     assert.equal(redirect.headers.get('location'), null);
   }
   assert.equal((await fetch('http://client/backends/unknown/health')).status, 404);
-  assert.equal((await fetch('http://client/backends/java/api/auth/login')).status, 404);
+  for (const backend of ['java', 'dotnet']) {
+    const login = async body => fetch(`http://client/backends/${backend}/api/auth/login`, {
+      method: 'POST', redirect: 'manual',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const success = await login({ email: 'mock@example.test', password: ' fictitious-demo-password\t ' });
+    assert.equal(success.status, 200);
+    assert.equal(success.headers.get('content-type'), 'application/json');
+    assert.equal(success.headers.get('cache-control'), 'no-store');
+    const body = await success.json();
+    // Assertions never include the response or token in diagnostics.
+    assert.ok(body !== null && typeof body === 'object' && !Array.isArray(body));
+    assert.ok(Object.keys(body).length === 1 && Object.hasOwn(body, 'accessToken'));
+    assert.ok(typeof body.accessToken === 'string' && body.accessToken.length > 0);
+    const denied = await login({ email: 'mock@example.test', password: 'deliberately-wrong' });
+    assert.equal(denied.status, 401);
+    assert.equal(denied.headers.get('content-type'), 'application/json');
+    assert.equal(denied.headers.get('www-authenticate'), 'Bearer');
+    assert.ok(JSON.stringify(await denied.json()) === '{"code":"invalid_credentials"}');
+    const invalid = await login({});
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.headers.get('content-type'), 'application/json');
+    assert.ok(JSON.stringify(await invalid.json()) === '{"code":"invalid_request"}');
+    assert.equal((await fetch(`http://client/backends/${backend}/api/auth/register`)).status, 404);
+    console.log(`OK: ${backend} mock login proxy (200/400/401 and headers).`);
+  }
   console.log('Runtime and proxy smoke tests passed (isolated mocks, no host ports).');
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch(error => { console.error('Runtime/proxy smoke verification failed.'); process.exitCode = 1; });

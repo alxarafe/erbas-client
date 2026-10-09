@@ -15,6 +15,7 @@ RUN npm run build
 FROM nginx:1.28-alpine AS runtime
 COPY --from=build /workspace/dist/erbas-client/browser /usr/share/nginx/html
 COPY docker/health-proxy.conf /etc/nginx/health-proxy.conf
+COPY docker/auth-proxy.conf /etc/nginx/auth-proxy.conf
 COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
 ENV ERBAS_JAVA_UPSTREAM=erbas-app-1:8080 ERBAS_DOTNET_UPSTREAM=alxarafe-dotnet-app-1:8080
 EXPOSE 80
