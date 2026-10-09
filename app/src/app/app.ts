@@ -1,11 +1,22 @@
-import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { BACKENDS } from './backends';
 import { BackendSelection } from './backend-selection';
 import { HealthClient } from './health-client';
+import { AuthClient, InvalidLoginResponseError } from './auth-client';
+import { AuthSession } from './auth-session';
 
 type HealthState = 'checking' | 'online' | 'error';
+type LoginState =
+  | 'idle'
+  | 'submitting'
+  | 'authenticated'
+  | 'invalid-credentials'
+  | 'invalid-request'
+  | 'unavailable'
+  | 'invalid-response';
 
 @Component({
   selector: 'app-root',
@@ -19,16 +30,72 @@ export class App {
   readonly state = signal<HealthState>('checking');
   readonly lastChecked = signal<Date | null>(null);
   readonly duration = signal<number | null>(null);
+  readonly session = inject(AuthSession);
+  readonly authenticated = computed(
+    () => this.session.tokenFor(this.selection.selected().id) !== null,
+  );
+  readonly loginState = signal<LoginState>('idle');
+  readonly loginMessages: Record<LoginState, string> = {
+    idle: 'Enter your credentials to sign in.',
+    submitting: 'Signing in…',
+    authenticated: 'Authenticated',
+    'invalid-credentials': 'Invalid email or password.',
+    'invalid-request': 'The login request is invalid.',
+    unavailable: 'Authentication service unavailable.',
+    'invalid-response': 'The backend returned an invalid login response.',
+  };
+  private readonly auth = inject(AuthClient);
   private readonly health = inject(HealthClient);
   private request?: Subscription;
+  private loginRequest?: Subscription;
 
   constructor() {
     effect(() => this.check(this.selection.selected().proxyBaseUrl));
-    inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
+    inject(DestroyRef).onDestroy(() => {
+      this.request?.unsubscribe();
+      this.loginRequest?.unsubscribe();
+    });
   }
 
   select(event: Event): void {
+    const previous = this.selection.selected();
     this.selection.select((event.target as HTMLSelectElement).value);
+    if (this.selection.selected().id !== previous.id) this.clearSession();
+  }
+
+  login(event: Event, email: HTMLInputElement, password: HTMLInputElement): void {
+    event.preventDefault();
+    const backend = this.selection.selected();
+    this.loginRequest?.unsubscribe();
+    this.session.clear();
+    this.loginState.set('submitting');
+    this.loginRequest = this.auth
+      .login(backend.proxyBaseUrl, { email: email.value, password: password.value })
+      .subscribe({
+        next: (response) => {
+          password.value = '';
+          this.session.establish(backend.id, response.accessToken);
+          this.loginState.set('authenticated');
+        },
+        error: (error: unknown) => {
+          if (error instanceof InvalidLoginResponseError) {
+            this.loginState.set('invalid-response');
+          } else if (error instanceof HttpErrorResponse && error.status === 401) {
+            password.value = '';
+            this.loginState.set('invalid-credentials');
+          } else if (error instanceof HttpErrorResponse && error.status === 400) {
+            this.loginState.set('invalid-request');
+          } else {
+            this.loginState.set('unavailable');
+          }
+        },
+      });
+  }
+
+  clearSession(): void {
+    this.loginRequest?.unsubscribe();
+    this.session.clear();
+    this.loginState.set('idle');
   }
 
   check(baseUrl = this.selection.selected().proxyBaseUrl): void {

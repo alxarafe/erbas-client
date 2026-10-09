@@ -32,13 +32,21 @@ label {
   display: block;
   margin-bottom: 8px;
 }
-select {
+select,
+input {
   width: 100%;
   padding: 12px;
   border: 1px solid #8798ad;
   border-radius: 6px;
   background: white;
   font: inherit;
+  box-sizing: border-box;
+}
+.authentication {
+  margin-top: 24px;
+}
+.authentication input {
+  margin-bottom: 20px;
 }
 dt {
   color: #52647b;
