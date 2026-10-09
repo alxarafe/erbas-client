@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/demo-common"
+resolve_repositories up
+require_command docker
+require_command curl
+set_urls
+run_owner Java "$java_dir" up
+run_owner .NET "$dotnet_dir" up
+run_owner Client "$demo_root" up
+wait_for_http Java "$java_url"
+wait_for_http .NET "$dotnet_url"
+wait_for_http Client "$client_url"
+printf '\nDevelopment environment ready (HTTP 200):\n  Java:   %s\n  .NET:   %s\n  Client: %s\nRun ./bin/demo-check to verify both real backend contracts and proxies.\n' "$java_url" "$dotnet_url" "$client_url"

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/demo-common"
+resolve_repositories down
+require_command docker
+failed=0
+stop_owner() {
+    local label="$1" directory="$2"
+    printf 'Stopping %s: %s/bin/down\n' "$label" "$directory"
+    if ! (cd "$directory" && ./bin/down); then
+        printf 'ERROR: %s bin/down failed; continuing with remaining repositories.\n' "$label" >&2
+        failed=1
+    fi
+}
+stop_owner Client "$demo_root"
+stop_owner .NET "$dotnet_dir"
+stop_owner Java "$java_dir"
+(( failed == 0 )) || exit 1
+printf 'Development environment stopped using owner scripts (no volume-removal arguments).\n'

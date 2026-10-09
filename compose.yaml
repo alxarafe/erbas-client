@@ -1,0 +1,11 @@
+name: erbas-client
+services:
+  client:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "127.0.0.1:${ERBAS_CLIENT_PORT:-48082}:80"
+    environment:
+      ERBAS_JAVA_UPSTREAM: ${ERBAS_JAVA_UPSTREAM:-erbas-app-1:8080}
+      ERBAS_DOTNET_UPSTREAM: ${ERBAS_DOTNET_UPSTREAM:-alxarafe-dotnet-app-1:8080}

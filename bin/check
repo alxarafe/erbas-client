@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$root"
+for script in bin/*; do bash -n "$script"; done
+docker compose config --quiet
+ERBAS_CLIENT_PORT=49082 docker compose config --quiet
+./bin/test
+run="erbas-client-check-${BASHPID}-${RANDOM}"
+cleanup() {
+    local code=$?
+    trap - EXIT
+    for name in "$run-client" "$run-java" "$run-dotnet"; do
+        docker container rm --force "$name" >/dev/null || code=1
+    done
+    docker network rm "$run" >/dev/null || code=1
+    docker image rm "$run" >/dev/null || code=1
+    exit "$code"
+}
+docker build --target runtime --tag "$run" .
+docker network create "$run" >/dev/null
+trap cleanup EXIT
+for backend in java dotnet; do
+    docker run --detach --name "$run-$backend" --network "$run" --network-alias "$backend"         -v "$root/docker/mock-health.cjs:/mock.cjs:ro" node:24-alpine node /mock.cjs >/dev/null
+done
+docker run --detach --name "$run-client" --network "$run" --network-alias client     -e ERBAS_JAVA_UPSTREAM=java:8080 -e ERBAS_DOTNET_UPSTREAM=dotnet:8080 "$run" >/dev/null
+docker run --rm --network "$run" -v "$root/docker/smoke.cjs:/smoke.cjs:ro" node:24-alpine node /smoke.cjs
+echo 'CHECK PASS: unit tests, production build, Docker runtime and both same-origin proxies.'

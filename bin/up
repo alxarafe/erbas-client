@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$root"
+docker compose config --quiet
+docker compose up --build --detach --wait --wait-timeout 90
+client="$(docker compose ps --quiet client)"
+# Join only the client's container to existing backend networks. No backend is changed.
+for backend in "${ERBAS_JAVA_CONTAINER:-erbas-app-1}" "${ERBAS_DOTNET_CONTAINER:-alxarafe-dotnet-app-1}"; do
+    if ! docker container inspect "$backend" >/dev/null 2>&1; then
+        echo "Backend $backend not found; start it and rerun ./bin/up to attach its network."
+        continue
+    fi
+    networks="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$backend")"
+    for network in $networks; do
+        attached="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$client")"
+        if ! [[ $'\n'"$attached"$'\n' == *$'\n'"$network"$'\n'* ]]; then
+            docker network connect "$network" "$client"
+        fi
+    done
+done
+echo "ERBAS client: http://127.0.0.1:${ERBAS_CLIENT_PORT:-48082}"
