@@ -54,6 +54,11 @@
   </section>
   <section class="authentication" aria-labelledby="auth-heading">
     <h2 id="auth-heading">Authentication</h2>
+    <p class="timing">
+      Default demo credentials (development only; never use in production):<br />
+      Try with user: <code>reader&#64;example.test</code> and password:
+      <code>Reader_dev_only_123!</code>.
+    </p>
     <div aria-live="polite" aria-atomic="true">
       @if (authenticated()) {
         <p>Authenticated · {{ selection.selected().name }}</p>
