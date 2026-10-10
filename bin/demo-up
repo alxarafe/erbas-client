@@ -7,14 +7,18 @@ require_command curl
 set_urls
 set_demo_identity
 ERBAS_AUTH_BOOTSTRAP_ENABLED=true \
-ERBAS_AUTH_BOOTSTRAP_EMAIL="$ERBAS_DEMO_EMAIL" \
-ERBAS_AUTH_BOOTSTRAP_PASSWORD="$ERBAS_DEMO_PASSWORD" \
+ERBAS_AUTH_BOOTSTRAP_ADMIN=true \
+ERBAS_AUTH_BOOTSTRAP_EMAIL="$ERBAS_DEMO_ADMIN_EMAIL" \
+ERBAS_AUTH_BOOTSTRAP_PASSWORD="$ERBAS_DEMO_ADMIN_PASSWORD" \
 run_owner Java "$java_dir" up
+ERBAS_CORE_ADMIN_EMAIL="$ERBAS_DEMO_ADMIN_EMAIL" \
+ERBAS_CORE_ADMIN_PASSWORD="$ERBAS_DEMO_ADMIN_PASSWORD" \
 run_owner .NET "$dotnet_dir" up
-run_owner Client "$demo_root" up
 wait_for_http Java "$java_url"
 wait_for_http .NET "$dotnet_url"
+python3 "$demo_root/demo/identities.py" provision "${java_url%/health}" "${dotnet_url%/health}"
+run_owner Client "$demo_root" up
 wait_for_http Client "$client_url"
 printf '\nDevelopment environment ready (HTTP 200):\n  Java:   %s\n  .NET:   %s\n  Client: %s\nRun ./bin/demo-check to verify both real backend contracts and proxies.\n' "$java_url" "$dotnet_url" "$client_url"
 
-printf 'Demo authentication identity (development only): %s\n' "$ERBAS_DEMO_EMAIL"
+printf 'Demo identities verified (development only): administrator %s; regular user %s\n' "$ERBAS_DEMO_ADMIN_EMAIL" "$ERBAS_DEMO_USER_EMAIL"

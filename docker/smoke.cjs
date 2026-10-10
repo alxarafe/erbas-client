@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   assert.ok(ready, 'Client must start');
+  assert.equal((await fetch('http://client/demo/defaults.env')).status, 404);
   const html = await (await fetch('http://client/')).text();
   assert.match(html, /<app-root>/);
   const script = html.match(/src="(main[^"]+\.js)"/);

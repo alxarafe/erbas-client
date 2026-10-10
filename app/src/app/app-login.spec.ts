@@ -50,6 +50,7 @@ describe('Application login', () => {
     session = TestBed.inject(AuthSession);
     fixture = TestBed.createComponent(App);
     await fixture.whenStable();
+    http.expectOne('/demo/defaults.env').flush('', { status: 404, statusText: 'Not Found' });
     page = fixture.nativeElement as HTMLElement;
     email = page.querySelector('#email')!;
     password = page.querySelector('#password')!;

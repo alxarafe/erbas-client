@@ -54,11 +54,27 @@
   </section>
   <section class="authentication" aria-labelledby="auth-heading">
     <h2 id="auth-heading">Authentication</h2>
-    <p class="timing">
-      Default demo credentials (development only; never use in production):<br />
-      Try with user: <code>reader&#64;example.test</code> and password:
-      <code>Reader_dev_only_123!</code>.
-    </p>
+    @if (demoDefaults(); as demo) {
+      <aside aria-labelledby="demo-heading">
+        <h3 id="demo-heading">Default demo values</h3>
+        <p>
+          Public development/demo values; never use in production. They can stop working if
+          persisted demo accounts are modified.
+        </p>
+        <dl>
+          <dt>Administrator</dt>
+          <dd>
+            <code>{{ demo.adminEmail }}</code> ·
+            <code>{{ demo.adminPassword }}</code>
+          </dd>
+          <dt>Regular user</dt>
+          <dd>
+            <code>{{ demo.userEmail }}</code> ·
+            <code>{{ demo.userPassword }}</code>
+          </dd>
+        </dl>
+      </aside>
+    }
     <div aria-live="polite" aria-atomic="true">
       @if (authenticated()) {
         <p>Authenticated · {{ selection.selected().name }}</p>

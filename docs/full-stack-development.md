@@ -9,14 +9,16 @@ or combined ecosystem Compose file.
 
 ```text
 workspace/
-├── erbas/              # Java implementation
+├── erbas-contract/    # canonical demo/defaults.env
+├── erbas/             # Java implementation
 ├── alxarafe-dotnet/    # .NET implementation
 └── erbas-client/      # this repository
 ```
 
-Use Bash, Docker Engine with Compose v2, permission to access Docker, and curl.
-`demo-check` also needs Python 3 (standard library only). Initial builds need
-network access to the repositories' image and dependency registries. Follow each
+Use Bash, Docker Engine with Compose v2, permission to access Docker, curl and
+Python 3 (standard library only, also used for focused orchestration tests in
+`bin/check`). Initial builds need network access to the repositories' image and
+dependency registries. Follow each
 backend's own host requirements and configuration instructions. No host Node.js
 or Angular CLI installation is needed for the client.
 
@@ -55,32 +57,67 @@ export ERBAS_DOTNET_DIR=/path/to/alxarafe-dotnet
 ./bin/demo-down
 ```
 
-Keep the same environment when stopping. No repository paths are required by
-`demo-check`, which only makes HTTP requests to the running ecosystem.
+Keep the same environment for startup and checks. `demo-check` requires the
+contract defaults file even though it only checks the running backends over HTTP.
+`demo-down` does not require the contract defaults file.
 
-## Demo identity
+## Demo identities
 
-The default is the current .NET Catalog development seed's `reader@example.test`
-identity and its public, versioned `SecuritySeed__ReaderPassword` value (see the
-backend's development Compose or usage documentation). **Development/demo only;
-never use these credentials in production.** Scripts do not print the password.
-`ERBAS_DEMO_EMAIL` and `ERBAS_DEMO_PASSWORD` override the common credentials for
-both startup and verification; export them consistently for `demo-up` and
-`demo-check`. An override must already authenticate an existing .NET account;
-these helpers do not change .NET seed configuration or reset its users.
+`erbas-contract/demo/defaults.env` is the canonical source for the four initial
+public demo values. Both `demo-up` and `demo-check` require this file. Set
+`ERBAS_CONTRACT_DIR` to use another checkout; the default is `../erbas-contract`
+relative to this client repository. Explicit relative overrides are resolved
+from the caller's working directory. The backends never read this file directly.
 
-`demo-up` enables Java's official development bootstrap with
-`ERBAS_AUTH_BOOTSTRAP_ENABLED`, `ERBAS_AUTH_BOOTSTRAP_EMAIL` and
-`ERBAS_AUTH_BOOTSTRAP_PASSWORD`. Flyway applies pending schema migrations first.
-Bootstrap creates only the specified identity when absent, or reuses a matching
-existing account. A conflicting password/disabled account fails safely rather
-than resetting it. No SQL provisioning or registration endpoint is used.
+Export any of these variables to override its corresponding contract value:
 
-Existing development volumes are retained. An old Java V1 database receives V2
-normally, preserving `erbas_persistence_marker`. The .NET normal development seed
-reuses its existing account. Restarting with the same credentials is idempotent.
-Login tokens are checked in memory and discarded without decoding or consuming
-backend-specific protected APIs.
+- `ERBAS_DEMO_ADMIN_EMAIL`
+- `ERBAS_DEMO_ADMIN_PASSWORD`
+- `ERBAS_DEMO_USER_EMAIL`
+- `ERBAS_DEMO_USER_PASSWORD`
+
+An exported value takes precedence, including an empty value (which fails
+validation). All four effective values must be nonempty, contain no CR/LF/NUL,
+and use distinct admin/user emails. A small explicit KEY=VALUE parser preserves
+literal characters without shell evaluation. Keep overrides consistent for
+`demo-up` and `demo-check`. **These are intentionally public development/demo
+credentials, not secrets; never use them in production.** Passwords and tokens
+are not printed by the orchestration.
+
+`demo-up` maps the administrator to Java's existing controlled bootstrap:
+`ERBAS_AUTH_BOOTSTRAP_ENABLED=true`, `ERBAS_AUTH_BOOTSTRAP_ADMIN=true`,
+`ERBAS_AUTH_BOOTSTRAP_EMAIL` and `ERBAS_AUTH_BOOTSTRAP_PASSWORD`. It maps the same
+identity to .NET's `ERBAS_CORE_ADMIN_EMAIL` and `ERBAS_CORE_ADMIN_PASSWORD`, which
+Compose forwards as `SecuritySeed__AdminEmail` and `SecuritySeed__AdminPassword`.
+Both remain independently runnable. No additional seed subsystem or migration
+is introduced, and registration semantics are unchanged.
+
+After backend startup, administrator login and `/api/auth/me` must confirm the
+expected email, `enabled=true` and `admin=true`. The regular user is created
+through administrator-authorized `POST /api/users` with `admin=false`.
+A 201 response or 409 `email_conflict` is followed by regular-user login and
+`/api/auth/me` verification of the expected email, `enabled=true`, `admin=false`.
+The regular user must also receive contractual 403 `forbidden` with no-store
+from `GET /api/users`. No user is seeded directly or granted module permissions.
+.NET reader/creator accounts remain separate backend/module development fixtures;
+they are no longer the ecosystem demo defaults.
+
+Repeated startup works with persistent databases when identities still match.
+Existing credentials/state are never silently reset, re-enabled, promoted or
+demoted. A modified persisted demo identity fails clearly: reset/recreate the
+development environment deliberately, or provide matching `ERBAS_DEMO_*`
+overrides. No automatic account-reset behavior is implemented. Backend startup
+conflicts also fail safely rather than overwriting accounts. Existing volumes
+are retained.
+
+The four effective values pass to the client container. An Nginx entrypoint
+writes public `/demo/defaults.env` only when all values are supplied, rejecting
+empty/CR/LF values. The resource uses no-store. Angular reads it optionally and
+shows both identities as “Default demo values”, with a development warning and
+account-mutation caveat. Missing/invalid optional configuration hides the values
+without affecting Health, login or backend selection. No auto-login or fill
+buttons are added. Tokens remain in memory only. No browser `/api/users` or
+`/api/auth/me` proxy is introduced; orchestration accesses backend ports directly.
 
 ## Ports and proxy routes
 
@@ -126,54 +163,58 @@ Java direct Health, .NET direct Health, client HTTP, client → Java Health and 
 media-type parameters are accepted), and exactly the JSON object
 `{"status":"ok"}`. Extra or duplicate properties, invalid JSON, redirects and
 request failures are rejected. Requests have bounded timeouts and bypass host
-HTTP proxy settings for these loopback endpoints. Failures are reported for each
-target and produce a nonzero exit code. A backend revision with another Health
+HTTP proxy settings for these loopback endpoints. A failed target produces a
+nonzero exit code. A backend revision with another Health
 representation will fail; the client does not adapt that response.
 
-It additionally verifies successful login and deliberately incorrect-password
-401 responses for both real backends **through the client proxy**. Success must
-be HTTP 200 JSON with exactly one nonempty string `accessToken` and
-`Cache-Control: no-store`; failure must be HTTP 401 JSON with exactly
-`{"code":"invalid_credentials"}` and `WWW-Authenticate: Bearer`. Redirects and
-unexpected responses fail. Login bodies, tokens, passwords and exceptions are
-never printed. Credentials and login responses are processed in memory, with
-no login response files; the temporary Health-check directory is removed by trap.
+It also verifies administrator and regular-user login plus `/api/auth/me` on
+both direct backends, regular-user admin denial, and each identity's successful
+and incorrect-password login through both client proxies. Response structures,
+status codes and contractual no-store/challenge headers are checked. The client
+runtime resource must exactly match the four effective shared values. Angular
+component tests prove those resource values are displayed, completing the path
+from contract defaults through orchestration and runtime to Angular-visible data.
+Tokens and login responses stay in memory; response details are withheld on error.
 
 `./bin/check` remains the authoritative isolated repository validation used by
-normal CI. It runs Angular tests, builds and Docker runtime/proxy smoke checks
-against isolated mocks, including login 200/400/401, headers and rejection of
-undeclared routes, without external clones or running real backends.
-`demo-check` is a separate, deliberate integration check and is not part of normal
-CI. Health success demonstrates HTTP liveness and contract conformance, not
-application/database readiness beyond what each backend defines.
+normal CI. It runs focused Python parsing/override/idempotence tests, Angular
+component tests, production build and Docker runtime/proxy smoke checks against
+isolated mocks. Runtime checks cover both absent optional demo configuration and
+supplied disposable values. `demo-check` is separate real integration evidence,
+not normal CI or a substitute for the backend shared Bruno suites.
 
-## Equivalent manual workflow
+For manual diagnosis, use each owner's `bin/up`/`bin/down` with the mappings above
+and inspect direct/proxied Health. Prefer `demo-up` for the complete sequence,
+including safe JSON construction and regular-user creation/verification; simply
+starting three containers does not provision the shared identities.
 
-With the recommended sibling layout, from `erbas-client`:
+## DEMO-001B integration verification (2026-10-10)
 
-```bash
-# Export the same existing .NET development identity via ERBAS_DEMO_EMAIL/PASSWORD.
-(cd ../erbas && ERBAS_AUTH_BOOTSTRAP_ENABLED=true \
-  ERBAS_AUTH_BOOTSTRAP_EMAIL="$ERBAS_DEMO_EMAIL" \
-  ERBAS_AUTH_BOOTSTRAP_PASSWORD="$ERBAS_DEMO_PASSWORD" ./bin/up)
-(cd ../alxarafe-dotnet && ./bin/up)
-./bin/up
+Verified with the three `feature/demo-001-shared-identities` branches and the
+unchanged contract checkout at `74abd8ddcafbcdf65530b7f4711002b74c045771`, containing
+DEMO-001A `2310183c3887f6a6c9d4faf60863925e1fc3c3a9`. The source was its
+`demo/defaults.env`; no demo overrides were exported for the real runs.
 
-curl --fail --noproxy '*' http://127.0.0.1:48080/health
-curl --fail --noproxy '*' http://127.0.0.1:48081/health
-curl --fail --noproxy '*' http://127.0.0.1:48082
-curl --fail --noproxy '*' -H 'Accept: application/json' http://127.0.0.1:48082/backends/java/health
-curl --fail --noproxy '*' -H 'Accept: application/json' http://127.0.0.1:48082/backends/dotnet/health
-./bin/demo-check
+`./bin/demo-up`, `./bin/demo-check` and `./bin/demo-down` passed. Repeated startup
+and a second `demo-check` passed against the same persistent databases. Both
+administrator and regular-user login/current identity, regular-user 403 denial,
+direct/proxied Health, successful/incorrect-password proxy login and exact client
+runtime values were verified. No passwords or tokens were printed or persisted
+by the checks. Owner shutdown succeeded; the existing database and Identity key
+volumes remained present. No persistent volumes were removed.
 
-./bin/down
-(cd ../alxarafe-dotnet && ./bin/down)
-(cd ../erbas && ./bin/down)
-```
+The repeated run exposed a Java readiness-probe issue after rebuilding an
+unchanged container: its historical image manifest was no longer available.
+Java's owner script now selects the container's configured image reference for
+the host-port probe. Repeated startup then passed without account/data changes.
 
-Run each startup command only after the previous one succeeds. Replace sibling
-paths and ports with your overrides when needed. The curl commands are useful
-for diagnosis; `demo-check` performs the strict automated contract checks.
+Client `./bin/check` passed six focused Python tests, 62 Angular tests, production
+build and runtime/proxy checks with and without demo values. Disposable overrides
+proved precedence without editing contract defaults. Modified-account refusal is
+covered by focused tests; no real demo account was deliberately mutated for this
+verification. UI display is verified by Angular component tests; production
+runtime values are verified over HTTP, not by a browser UI test. Backend checks
+use their unchanged pinned contract revision separately from the defaults source.
 
 ## WEB-002 integration verification (2026-10-09)
 
