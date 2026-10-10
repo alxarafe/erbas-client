@@ -1,12 +1,14 @@
 # ERBAS Client
 
-[![Client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
+Java backend CI: [![Java backend CI](https://github.com/alxarafe/erbas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas/actions/workflows/ci.yml)
+.NET backend CI / shared conformance: [![.NET backend CI / shared conformance](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/alxarafe-dotnet/actions/workflows/ci.yml)
+Angular client CI: [![Angular client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
 
 The shared Angular client demonstrates **one executable contract, multiple
 interchangeable implementations**. WEB-002 provides backend selection, a public
 Health check and shared AUTH-001 login, using standalone components, strict
-TypeScript, HttpClient
-and signals. Angular 22 is built inside Docker; Nginx serves the production bundle.
+TypeScript, HttpClient and signals. WEB-001 and WEB-002 are completed and merged.
+Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.
 The same Health client consumes Java ([alxarafe/erbas](https://github.com/alxarafe/erbas))
@@ -15,6 +17,20 @@ It requires `GET /health`, `Accept: application/json`, HTTP 200 and a JSON objec
 containing exactly `{"status":"ok"}`. Additional properties, incorrect media types,
 invalid JSON, other statuses, redirects, timeouts and connection failures are errors.
 Health indicates HTTP process liveness, not database readiness.
+
+| Repository | Responsibility |
+| --- | --- |
+| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; no published release |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health and AUTH-001; AUTH-003 completed |
+| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health and AUTH-001 plus platform modules; AUTH-002 completed |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health and AUTH-001 from either backend |
+
+The Angular badge reports client tests, build, runtime and isolated proxy checks.
+Java's badge is general backend CI, not shared-contract conformance; Java's
+[AUTH-003 evidence](https://github.com/alxarafe/erbas/blob/main/docs/verification/auth-003.md)
+records local conformance. The .NET badge includes shared Bruno in its backend
+workflow. The [verified real dual-backend demo](docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
+is separate integration evidence; no badge claims contract-repository CI.
 
 ## Full-stack Quick Start
 
