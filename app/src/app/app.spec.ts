@@ -17,6 +17,7 @@ describe('Application', () => {
   it('loads, checks Health automatically and renders online', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
+    http.expectOne('/demo/defaults.env').flush('', { status: 404, statusText: 'Not Found' });
     const page = fixture.nativeElement as HTMLElement;
     expect(page.querySelector('h1')?.textContent).toBe('ERBAS');
     expect(page.querySelectorAll('option').length).toBe(2);
@@ -32,6 +33,7 @@ describe('Application', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const old = http.expectOne('/backends/java/health');
+    http.expectOne('/demo/defaults.env').flush('', { status: 404, statusText: 'Not Found' });
     const page = fixture.nativeElement as HTMLElement;
     const select = page.querySelector('select')!;
     select.value = 'dotnet';

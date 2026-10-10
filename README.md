@@ -36,8 +36,8 @@ is separate integration evidence; no badge claims contract-repository CI.
 
 ## Full-stack Quick Start
 
-With sibling `../erbas` and `../alxarafe-dotnet` checkouts providing their own
-`bin/up` and `bin/down` scripts:
+With sibling `../erbas-contract` containing `demo/defaults.env`, and `../erbas`
+and `../alxarafe-dotnet` providing their own `bin/up` and `bin/down` scripts:
 
 ```bash
 ./bin/demo-up
@@ -52,8 +52,9 @@ from the isolated `bin/check` suite used by normal CI.
 
 ## Host requirements and workflow
 
-Docker Engine with Docker Compose v2, Bash and permission to use Docker are
-required. Initial builds need network access to image and npm registries.
+Docker Engine with Docker Compose v2, Bash, Python 3 and permission to use Docker
+are required. Python uses only its standard library for demo orchestration and
+focused tests. Initial builds need network access to image and npm registries.
 The host needs neither Node.js nor Angular CLI. Run from this checkout:
 
 ```bash
@@ -173,8 +174,12 @@ and bodies pass through without error interception. Proxy timeouts are bounded.
 
 `bin/check` verifies runtime Health/login proxies against isolated mocks;
 `bin/demo-check` verifies both real development backends through the client.
-The demo uses the .NET development seed identity `reader@example.test` and Java's
-explicit development bootstrap; see [demo credentials](docs/full-stack-development.md#demo-identity).
+The demo reads public administrator and regular-user defaults from
+`erbas-contract/demo/defaults.env`, with explicit `ERBAS_DEMO_*` overrides.
+It provisions/verifies administrators using backend-owned mechanisms and creates
+regular users through the shared API. Optional public runtime demo values appear
+in the login screen; modified persisted accounts are never silently reset.
+See [demo identities](docs/full-stack-development.md#demo-identities).
 These public demo credentials must never be used in production.
 
 ## License

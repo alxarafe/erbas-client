@@ -25,6 +25,11 @@ server {
         proxy_pass http://$upstream/api/auth/login;
         include /etc/nginx/auth-proxy.conf;
     }
+    location = /demo/defaults.env {
+        default_type text/plain;
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
     location = /proxy-error { internal; return 502; }
     location /backends/ { return 404; }
     location / { try_files $uri $uri/ /index.html; }

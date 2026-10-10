@@ -1,12 +1,13 @@
 import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { BACKENDS } from './backends';
 import { BackendSelection } from './backend-selection';
 import { HealthClient } from './health-client';
 import { AuthClient, InvalidLoginResponseError } from './auth-client';
 import { AuthSession } from './auth-session';
+import { DemoDefaults, parseDemoDefaults } from './demo-defaults';
 
 type HealthState = 'checking' | 'online' | 'error';
 type LoginState =
@@ -26,6 +27,7 @@ type LoginState =
 })
 export class App {
   readonly backends = BACKENDS;
+  readonly demoDefaults = signal<DemoDefaults | null>(null);
   readonly selection = inject(BackendSelection);
   readonly state = signal<HealthState>('checking');
   readonly lastChecked = signal<Date | null>(null);
@@ -50,8 +52,15 @@ export class App {
   private loginRequest?: Subscription;
 
   constructor() {
+    const demoRequest = inject(HttpClient)
+      .get('/demo/defaults.env', { responseType: 'text' })
+      .subscribe({
+        next: (text) => this.demoDefaults.set(parseDemoDefaults(text)),
+        error: () => this.demoDefaults.set(null),
+      });
     effect(() => this.check(this.selection.selected().proxyBaseUrl));
     inject(DestroyRef).onDestroy(() => {
+      demoRequest.unsubscribe();
       this.request?.unsubscribe();
       this.loginRequest?.unsubscribe();
     });

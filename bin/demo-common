@@ -46,12 +46,16 @@ wait_for_http() {
 run_owner() {
     local label="$1" directory="$2" script="$3"
     printf '%s: %s/bin/%s\n' "$label" "$directory" "$script"
-    (cd "$directory" && "./bin/$script") || fail "$label bin/$script failed. Started services are left running; inspect owner logs or use bin/demo-down."
+    (cd "$directory" && "./bin/$script") || fail "$label bin/$script failed. A persisted demo identity may have been modified; reset/recreate development or use matching ERBAS_DEMO_* overrides. No account state was reset. Started services are left running; inspect owner logs or use bin/demo-down."
 }
 
 set_demo_identity() {
-    # Public .NET Catalog seed credentials: development/demo only, never production.
-    export ERBAS_DEMO_EMAIL="${ERBAS_DEMO_EMAIL:-reader@example.test}"
-    export ERBAS_DEMO_PASSWORD="${ERBAS_DEMO_PASSWORD:-Reader_dev_only_123!}"
-    [[ -n "$ERBAS_DEMO_EMAIL" && -n "$ERBAS_DEMO_PASSWORD" ]] || fail 'Demo credentials must be nonempty.'
+    require_command python3
+    local candidate="${ERBAS_CONTRACT_DIR:-$demo_root/../erbas-contract}" values name value
+    [[ -d "$candidate" ]] || fail "Contract directory does not exist: $candidate"
+    contract_dir="$(cd "$candidate" && pwd -P)"
+    values="$(python3 "$demo_root/demo/identities.py" defaults "$contract_dir/demo/defaults.env")" || fail 'Cannot resolve shared demo defaults.'
+    while IFS='=' read -r name value; do
+        export "$name=$value"
+    done <<< "$values"
 }

@@ -5,6 +5,7 @@ cd "$root"
 for script in bin/*; do bash -n "$script"; done
 docker compose config --quiet
 ERBAS_CLIENT_PORT=49082 docker compose config --quiet
+python3 -B -m unittest discover -s tests -v
 ./bin/test
 run="erbas-client-check-${BASHPID}-${RANDOM}"
 cleanup() {
@@ -31,4 +32,11 @@ for backend in java dotnet; do
 done
 docker run --detach --name "$run-client" --network "$run" --network-alias client     -e ERBAS_JAVA_UPSTREAM=java:8080 -e ERBAS_DOTNET_UPSTREAM=dotnet:8080 "$run" >/dev/null
 docker run --rm --network "$run" -v "$root/docker/smoke.cjs:/smoke.cjs:ro" node:24-alpine node /smoke.cjs
+# Repeat with public disposable runtime values; normal operation above has none.
+docker rm --force "$run-client" >/dev/null
+docker run --detach --name "$run-client" --network "$run" --network-alias client \
+    -e ERBAS_JAVA_UPSTREAM=java:8080 -e ERBAS_DOTNET_UPSTREAM=dotnet:8080 \
+    -e ERBAS_DEMO_ADMIN_EMAIL=runtime-admin@example.test -e ERBAS_DEMO_ADMIN_PASSWORD='Runtime_admin_123=' \
+    -e ERBAS_DEMO_USER_EMAIL=runtime-user@example.test -e ERBAS_DEMO_USER_PASSWORD='Runtime_user_123$' "$run" >/dev/null
+docker run --rm --network "$run" -v "$root/docker/demo-smoke.cjs:/smoke.cjs:ro" node:24-alpine node /smoke.cjs
 echo 'CHECK PASS: unit tests, production build, Docker runtime and both same-origin Health and login proxies.'
