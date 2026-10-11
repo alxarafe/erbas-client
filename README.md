@@ -22,16 +22,16 @@ Health indicates HTTP process liveness, not database readiness.
 
 | Repository | Responsibility |
 | --- | --- |
-| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; no published release |
-| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot backend implementing Health and AUTH-001; AUTH-003 completed |
-| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET backend implementing Health and AUTH-001 plus platform modules; AUTH-002 completed |
+| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.4.0 |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of v0.4.0 |
+| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation of v0.4.0 plus platform modules |
 | [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health and AUTH-001 from either backend |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
-Java's badge is general backend CI, not shared-contract conformance; Java's
-[AUTH-003 evidence](https://github.com/alxarafe/erbas/blob/main/docs/verification/auth-003.md)
-records local conformance. The .NET badge includes shared Bruno in its backend
-workflow. The [verified real dual-backend demo](docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
+Java and .NET badges report each backend's authoritative `./bin/check`, including
+mandatory shared conformance against published `v0.4.0`. The Angular client
+consumes Health and AUTH-001; its CI does not perform backend shared conformance.
+The [verified real dual-backend demo](docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
 is separate integration evidence; no badge claims contract-repository CI.
 
 ## Full-stack Quick Start
