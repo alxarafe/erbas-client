@@ -10,9 +10,13 @@ cancel protected requests and discard user data. WEB-003B adds the authenticated
 `GET /api/users/{id}` detail view, sharing one closed User validator. The loaded
 profile informs administrator UI visibility; backend authorization remains
 explicitly authoritative. Profile/detail failures retain authentication except
-401, which discards all protected data. No user creation or editing is
-implemented. These slices are completed. Do not create
-placeholder applications or containers. The client owns
+401, which discards all protected data. WEB-003C adds administrator-only
+`POST /api/users`, defensive creation/error validation and a password input that
+is never persisted. Successful creation refreshes an already loaded collection
+from the same server offset, without optimistic insertion. Client cancellation
+prevents stale response acceptance; it does not roll back a server mutation.
+User updating/editing remains unimplemented. These slices are completed.
+Do not create placeholder applications or containers. The client owns
 `ERBAS_CLIENT_PORT` mapping: default loopback host port 48082 to container port 80.
 Follow the common convention in `erbas-contract/docs/development-ports.md`.
 

@@ -39,11 +39,13 @@ server {
     location = /backends/java/api/auth/me {
         set $upstream "${ERBAS_JAVA_UPSTREAM}";
         proxy_pass http://$upstream/api/auth/me;
+        limit_except GET { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location = /backends/dotnet/api/auth/me {
         set $upstream "${ERBAS_DOTNET_UPSTREAM}";
         proxy_pass http://$upstream/api/auth/me;
+        limit_except GET { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location = /demo/defaults.env {
@@ -54,17 +56,20 @@ server {
     location = /backends/java/api/users {
         set $upstream "${ERBAS_JAVA_UPSTREAM}";
         proxy_pass http://$upstream/api/users$is_args$args;
+        limit_except GET POST { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location = /backends/dotnet/api/users {
         set $upstream "${ERBAS_DOTNET_UPSTREAM}";
         proxy_pass http://$upstream/api/users$is_args$args;
+        limit_except GET POST { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location = /proxy-error { internal; return 502; }
     location /backends/ {
         if ($user_detail_path = "") { return 404; }
         proxy_pass http://$user_detail_upstream$user_detail_path;
+        limit_except GET { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location / { try_files $uri $uri/ /index.html; }

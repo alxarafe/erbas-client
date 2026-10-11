@@ -142,3 +142,36 @@ class UserReadTests(unittest.TestCase):
             with self.subTest(fault=fault), patch.object(demo, "request", side_effect=self.responses(fault)):
                 with self.assertRaises(demo.DemoError):
                     demo.verify_reads("Fixture", "http://fixture", VALUES)
+
+
+class UserCreateTests(unittest.TestCase):
+    def responses(self, fault=None):
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        headers["Cache-Control"] = "no-store"
+        def reply(url, payload=None, token=None):
+            if url.endswith("/api/auth/login"):
+                return demo.HTTPStatus.OK, headers, {"accessToken": "fixture-admin" if payload["email"] == VALUES[demo.NAMES[0]] else "fixture-regular"}
+            self.assertEqual(url, "http://fixture" + demo.USERS_ENDPOINT)
+            self.assertEqual(payload, {"email": VALUES[demo.NAMES[2]], "password": VALUES[demo.NAMES[3]], "admin": False})
+            status = demo.HTTPStatus.CONFLICT if token == "fixture-admin" else demo.HTTPStatus.FORBIDDEN
+            code = demo.PROTECTED_ERRORS[status]
+            if fault == "created": status = demo.HTTPStatus.CREATED
+            if fault == "extra": return status, headers, {"code": code, "extra": True}
+            if fault == "cache": headers.replace_header("Cache-Control", "public")
+            if fault == "challenge": headers[demo.USER_CHALLENGE_HEADER] = "Bearer"
+            return status, headers, {"code": code}
+        return reply
+
+    def test_creation_probe_uses_existing_email_only_and_never_accepts_201(self):
+        with patch.object(demo, "request", side_effect=self.responses()) as request, patch("builtins.print"):
+            demo.verify_creation("Fixture", "http://fixture", VALUES)
+        self.assertEqual(request.call_count, 4)
+
+    def test_invalid_creation_errors_fail_without_sensitive_diagnostics(self):
+        for fault in ("created", "extra", "cache", "challenge"):
+            with self.subTest(fault=fault), patch.object(demo, "request", side_effect=self.responses(fault)):
+                with self.assertRaises(demo.DemoError) as error:
+                    demo.verify_creation("Fixture", "http://fixture", VALUES)
+                self.assertNotIn(VALUES[demo.NAMES[3]], str(error.exception))
+                self.assertNotIn("fixture-admin", str(error.exception))
