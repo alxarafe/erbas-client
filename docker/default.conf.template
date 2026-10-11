@@ -30,6 +30,28 @@ server {
         add_header Cache-Control "no-store" always;
         try_files $uri =404;
     }
+    location = /backends/java/api/users {
+        set $upstream "${ERBAS_JAVA_UPSTREAM}";
+        limit_except GET { deny all; }
+        proxy_pass http://$upstream/api/users$is_args$args;
+        include /etc/nginx/health-proxy.conf;
+        proxy_set_header Authorization $http_authorization;
+        proxy_cache off;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        access_log off;
+    }
+    location = /backends/dotnet/api/users {
+        set $upstream "${ERBAS_DOTNET_UPSTREAM}";
+        limit_except GET { deny all; }
+        proxy_pass http://$upstream/api/users$is_args$args;
+        include /etc/nginx/health-proxy.conf;
+        proxy_set_header Authorization $http_authorization;
+        proxy_cache off;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        access_log off;
+    }
     location = /proxy-error { internal; return 502; }
     location /backends/ { return 404; }
     location / { try_files $uri $uri/ /index.html; }

@@ -1,6 +1,33 @@
 const http = require('node:http');
 let checks = 0;
 http.createServer((req, res) => {
+  if (req.url.startsWith('/api/users')) {
+    const url = new URL(req.url, 'http://mock');
+    const reply = (status, body, headers = {}) => {
+      res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers });
+      res.end(JSON.stringify(body));
+    };
+    if (url.pathname !== '/api/users' || req.method !== 'GET' || req.headers.accept !== 'application/json') {
+      reply(400, { code: 'invalid_request' }); return;
+    }
+    const bearer = req.headers.authorization;
+    if (bearer !== 'Bearer fictitious-mock-token' && bearer !== 'Bearer fictitious-regular-token') {
+      reply(401, { code: 'unauthorized' }, { 'WWW-Authenticate': 'Bearer' }); return;
+    }
+    if (bearer === 'Bearer fictitious-regular-token') { reply(403, { code: 'forbidden' }); return; }
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    const limit = Number(url.searchParams.get('limit') ?? 50);
+    if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+      reply(400, { code: 'invalid_request' }); return;
+    }
+    if (offset === 302) { res.writeHead(302, { Location: 'http://unreachable.invalid/users' }).end(); return; }
+    const users = [
+      { id: 'opaque-a', email: 'mock@example.test', enabled: true, admin: true },
+      { id: 'opaque-b', email: 'regular@example.test', enabled: true, admin: false },
+    ];
+    reply(200, { items: users.slice(offset, offset + limit), offset, limit, total: users.length, order: [{ field: 'id', direction: 'asc' }] });
+    return;
+  }
   if (req.url === '/api/auth/login' && req.method === 'POST') {
     let data = '';
     req.on('data', chunk => { data += chunk; });

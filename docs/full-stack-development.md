@@ -119,8 +119,9 @@ empty/CR/LF values. The resource uses no-store. Angular reads it optionally and
 shows both identities as “Default demo values”, with a development warning and
 account-mutation caveat. Missing/invalid optional configuration hides the values
 without affecting Health, login or backend selection. No auto-login or fill
-buttons are added. Tokens remain in memory only. No browser `/api/users` or
-`/api/auth/me` proxy is introduced; orchestration accesses backend ports directly.
+buttons are added. Tokens remain in memory only. The browser can list users
+through the exact `/api/users` proxy; `/api/auth/me` remains outside the client
+slice. Identity provisioning/verifications access backend ports directly.
 
 ## Ports and proxy routes
 
@@ -137,7 +138,8 @@ are loopback-only; databases are not published by the client.
 
 The client exposes `/backends/java/health` and `/backends/dotnet/health` on its own
 origin, plus the exact `/backends/java/api/auth/login` and
-`/backends/dotnet/api/auth/login` routes. Login is same-origin: no CORS changes or
+`/backends/dotnet/api/auth/login` routes, and read-only `/backends/java/api/users`
+and `/backends/dotnet/api/users` collection routes. Login and listing are same-origin: no CORS changes or
 direct browser login to backend host ports are needed. It connects to backend
 Docker networks using existing `bin/up` discovery,
 with default container names `erbas-app-1` and `alxarafe-dotnet-app-1`. Custom
@@ -145,6 +147,45 @@ backend project/container names require the corresponding `ERBAS_JAVA_CONTAINER`
 and `ERBAS_JAVA_UPSTREAM`, or `ERBAS_DOTNET_CONTAINER` and
 `ERBAS_DOTNET_UPSTREAM`; see [the README](../README.md#backends-and-same-origin-proxy).
 These variables are passed through to the existing owner workflows.
+
+## Authenticated user list (WEB-003A)
+
+Choose either backend, sign in, then select **Load users**. The same Angular
+UsersClient consumes the published v0.4.0 USERS-001 / COLLECTIONS-001 endpoint
+from Java or .NET. Access is administrator-only, enforced by the shared contract
+and backend; the client does not parse the opaque bearer or infer privileges.
+
+The table shows ID, email, enabled and administrator flags. Total, offset and
+limit come from the response. Previous/Next use a fixed limit of 50, starting
+at offset 0, without negative offsets or paging past the reported total.
+Reload requests the current window. Empty windows, including offsets beyond a
+changed total, remain valid and allow returning with Previous. IDs remain opaque;
+the UI preserves server order and validates exactly `id ASC` metadata.
+
+Success requires HTTP 200, JSON media type (charset parameters allowed), no-store,
+the exact closed collection and User fields, nonempty ID/email strings, Boolean
+flags and valid integer metadata. Offset/limit must echo the request, and item
+count must match the contractual window. Invalid pagination arguments are
+rejected before HTTP. Invalid success bodies are never partially displayed.
+
+Loading/reloading removes old rows. A protected 401 discards the unusable token
+and asks for authentication again; 403 keeps the session and explains the
+administrator requirement. 400 reports an invalid request; network/5xx failures
+report service unavailability; malformed success reports an invalid response.
+No backend payloads, internal errors or tokens are displayed.
+
+Backend switching, Clear session and a replacement login cancel pending users
+requests and discard the collection. Switching or signing in again starts at
+offset 0. Authentication stays exclusively in the existing memory-only,
+backend-bound AuthSession. Tokens never enter storage, cookies or URLs.
+User creation/editing/details, `/api/auth/me`, search, filtering and custom
+sorting are outside WEB-003A.
+
+Angular HTTP/component tests verify both backend flows, pagination, errors and
+cancellation. Isolated Docker smoke tests exercise both users proxies, including
+bearer/query forwarding, no-store, 400/401/403, redirect blocking and refusal of
+mutations/detail routes. `demo-check` remains the existing real Health/login/
+identity regression; it does not exercise this browser listing interaction.
 
 ## Stop
 

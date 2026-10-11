@@ -7,9 +7,10 @@
 [![Angular client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
 
 The shared Angular client demonstrates **one executable contract, multiple
-interchangeable implementations**. WEB-002 provides backend selection, a public
-Health check and shared AUTH-001 login, using standalone components, strict
-TypeScript, HttpClient and signals. WEB-001 and WEB-002 are completed and merged.
+interchangeable implementations**. WEB-003A extends backend selection, public
+Health and AUTH-001 login with authenticated administrator-only USERS-001 /
+COLLECTIONS-001 listing and pagination from published erbas-contract v0.4.0.
+It uses standalone components, strict TypeScript, HttpClient and signals.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.
@@ -25,12 +26,12 @@ Health indicates HTTP process liveness, not database readiness.
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.4.0 |
 | [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of v0.4.0 |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation of v0.4.0 plus platform modules |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health and AUTH-001 from either backend |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health, AUTH-001 and the USERS-001 / COLLECTIONS-001 list from either backend |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
 Java and .NET badges report each backend's authoritative `./bin/check`, including
 mandatory shared conformance against published `v0.4.0`. The Angular client
-consumes Health and AUTH-001; its CI does not perform backend shared conformance.
+consumes these shared operations; its CI does not perform backend shared conformance.
 The [verified real dual-backend demo](docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
 is separate integration evidence; no badge claims contract-repository CI.
 
@@ -65,7 +66,7 @@ The host needs neither Node.js nor Angular CLI. Run from this checkout:
 ```
 
 `bin/check` runs shell syntax and Compose validation, all Angular tests, the
-production build, and runtime Health/login proxy smoke tests against two isolated
+production build, and runtime Health/login/users proxy smoke tests against two isolated
 mock servers.
 It publishes no validation ports and removes its temporary containers, network
 and image tags. Docker build caches and downloaded base images remain reusable.
@@ -105,6 +106,8 @@ browser -> 127.0.0.1:48082 -> Nginx :80
                               /backends/dotnet/health -> .NET container :8080/health
                               /backends/java/api/auth/login   -> Java :8080/api/auth/login
                               /backends/dotnet/api/auth/login -> .NET :8080/api/auth/login
+                              /backends/java/api/users -> Java :8080/api/users
+                              /backends/dotnet/api/users -> .NET :8080/api/users
 ```
 
 The displayed development URLs are informational. Browser requests use relative,
@@ -127,9 +130,11 @@ ERBAS_JAVA_UPSTREAM=my-java-app-1:8080 ./bin/up
 Equivalent settings are `ERBAS_DOTNET_CONTAINER` and `ERBAS_DOTNET_UPSTREAM`.
 Upstreams must be trusted Docker DNS names (with port), reachable on the attached
 networks. These are deployment configuration, not user-provided proxy destinations.
-Only the exact Health and `/api/auth/login` paths for each backend are proxied;
+Only the exact Health, `/api/auth/login` and read-only `/api/users` paths are proxied;
 other `/backends/` paths return 404. Login preserves backend HTTP statuses, JSON
 bodies, `Cache-Control: no-store` and `WWW-Authenticate: Bearer`.
+The users proxy forwards the bearer and pagination query, preserves contractual
+errors and headers, blocks redirects, and disables buffering, caching and access logs.
 This workflow targets the existing Docker backends, rather than arbitrary host-native
 processes. A deployment-specific network configuration would be needed for those.
 
@@ -140,12 +145,13 @@ processes. A deployment-specific network configuration would be needed for those
 - `app/src/app/health-client.ts`: destination-neutral HTTP client and contract validation.
 - `app/src/app/auth-client.ts`: destination-neutral AUTH-001 login and response validation.
 - `app/src/app/auth-session.ts`: one in-memory session tied to its issuing backend.
-- `app/src/app/app.*`: login/Health presentation, cancellation and session orchestration.
+- `app/src/app/users-client.ts`: destination-neutral closed collection validation.
+- `app/src/app/app.*`: Health/login/users presentation, pagination and cancellation.
 - `Dockerfile`, `compose.yaml`, `docker/`: build, runtime proxy and isolated smoke fixtures.
 - `bin/`: lifecycle and validation workflows; `.github/workflows/ci.yml`: calls `bin/check`.
 
 To add an implementation, add a registry entry and an exact Nginx Health route,
-an exact login route, then configure its upstream/network. No Health logic changes
+exact login and users routes, then configure its upstream/network. No HTTP client changes
 are needed. The small
 HTTP service can later be replaced with a contract-generated client without changing
 backend selection. Dependency resolution is recorded in `app/package-lock.json`;
@@ -165,14 +171,22 @@ when returning to the previous backend. Reloading also loses the session.
 **Clear session** discards local state only; it does not revoke the server token.
 Only the backend selection is persisted in localStorage.
 
-There is no refresh, bearer interceptor, shared protected API consumed by the
-client, registration, server logout, roles or permissions UI. ERP navigation,
+After login, **Load users** requests the administrator-only collection. The
+table shows public user fields and server total; Previous/Next use fixed windows
+of 50 in contractual ID ascending order. 401 discards the unusable session;
+403 preserves it and explains the administrator requirement. Clearing or
+switching sessions cancels requests and removes users. See
+[user listing](docs/full-stack-development.md#authenticated-user-list-web-003a)
+for response validation and error states.
+
+User creation, editing and detail views remain unimplemented. There is no
+refresh, bearer interceptor, registration, server logout, roles or permissions UI. ERP navigation,
 CRUD, Catalog, AiAgent, SSR, PWA and production deployment remain outside scope.
 Health stays public and independent of authentication. The client does not adapt
 nonconforming responses. Health redirects are blocked by Nginx; login statuses
 and bodies pass through without error interception. Proxy timeouts are bounded.
 
-`bin/check` verifies runtime Health/login proxies against isolated mocks;
+`bin/check` verifies runtime Health/login/users proxies against isolated mocks;
 `bin/demo-check` verifies both real development backends through the client.
 The demo reads public administrator and regular-user defaults from
 `erbas-contract/demo/defaults.env`, with explicit `ERBAS_DEMO_*` overrides.
