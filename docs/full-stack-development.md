@@ -43,7 +43,7 @@ It then waits up to 90 seconds per endpoint for HTTP 200 and prints URL/status
 results. A failed owner command or availability check exits nonzero with an
 explicit error. Previously started services remain running for diagnosis;
 there is no automatic rollback or data deletion. Availability alone does not
-prove contract compliance: run `demo-check` for that.
+verify the demo's HTTP behavior: run `demo-check` for the integration checks below.
 
 The helpers can be invoked from any working directory. Override repository paths
 with `ERBAS_JAVA_DIR` and `ERBAS_DOTNET_DIR`; relative overrides are resolved from
@@ -68,6 +68,9 @@ public demo values. Both `demo-up` and `demo-check` require this file. Set
 `ERBAS_CONTRACT_DIR` to use another checkout; the default is `../erbas-contract`
 relative to this client repository. Explicit relative overrides are resolved
 from the caller's working directory. The backends never read this file directly.
+This setting selects the demo defaults file; it does not pin or verify a backend
+release. Each backend's `contract.revision` and authoritative `./bin/check` own
+release verification and shared conformance.
 
 Export any of these variables to override its corresponding contract value:
 
