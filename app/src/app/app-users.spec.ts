@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpStatusCode, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { App } from './app';
+import { CURRENT_USER_ENDPOINT, USERS_ENDPOINT, USERS_PAGE_SIZE, USER_HTTP } from './users-client';
+import { UserReadState } from './user-read-state';
 import { AuthSession } from './auth-session';
 
 describe('Application users collection', () => {
@@ -9,22 +11,30 @@ describe('Application users collection', () => {
   let page: HTMLElement;
   let http: HttpTestingController;
   let session: AuthSession;
-  const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+  const headers = {
+    [USER_HTTP.contentType]: USER_HTTP.json,
+    [USER_HTTP.cacheControl]: USER_HTTP.noStore,
+  };
   const token = 'opaque-issued-token';
   const user = { id: 'opaque-identifier', email: 'admin@example.test', enabled: true, admin: true };
   const collection = (offset = 0, total = 1) => ({
-    items: Array.from({ length: Math.min(50, Math.max(0, total - offset)) }, (_, index) => ({
-      ...user,
-      id: index === 0 ? user.id : `opaque-${offset + index}`,
-    })),
+    items: Array.from(
+      { length: Math.min(USERS_PAGE_SIZE, Math.max(0, total - offset)) },
+      (_, index) => ({
+        ...user,
+        id: index === 0 ? user.id : `opaque-${offset + index}`,
+      }),
+    ),
     offset,
-    limit: 50,
+    limit: USERS_PAGE_SIZE,
     total,
     order: [{ field: 'id', direction: 'asc' }],
   });
   const click = (id: string) => page.querySelector<HTMLButtonElement>(`#${id}`)!.click();
   const request = (backend = 'java', offset = 0) =>
-    http.expectOne(`/backends/${backend}/api/users?offset=${offset}&limit=50`);
+    http.expectOne(
+      `/backends/${backend}${USERS_ENDPOINT}?offset=${offset}&limit=${USERS_PAGE_SIZE}`,
+    );
   const health = (backend: string) =>
     http.expectOne(`/backends/${backend}/health`).flush({ status: 'ok' }, { headers });
   const switchTo = async (backend: string) => {
@@ -42,6 +52,7 @@ describe('Application users collection', () => {
     http
       .expectOne(`/backends/${backend}/api/auth/login`)
       .flush({ accessToken: token }, { headers });
+    http.expectOne(`/backends/${backend}${CURRENT_USER_ENDPOINT}`).flush(user, { headers });
     await fixture.whenStable();
   };
   const loaded = async (backend = 'java') => {
@@ -85,7 +96,7 @@ describe('Application users collection', () => {
       expect(page.textContent).toContain('Loading users');
       expect(page.querySelector<HTMLButtonElement>('#reload-users')!.disabled).toBe(true);
       const req = request(backend);
-      expect(req.request.headers.get('Authorization')).toBe(`Bearer ${token}`);
+      expect(req.request.headers.get(USER_HTTP.authorization)).toBe(`${USER_HTTP.bearer} ${token}`);
       req.flush(collection(), { headers });
       await fixture.whenStable();
       expect(session.tokenFor(backend)).toBe(token);
@@ -109,13 +120,13 @@ describe('Application users collection', () => {
     expect(page.querySelector<HTMLButtonElement>('#previous-users')!.disabled).toBe(true);
     expect(page.querySelector<HTMLButtonElement>('#next-users')!.disabled).toBe(false);
     click('next-users');
-    request('java', 50).flush(collection(50, 51), { headers });
+    request('java', USERS_PAGE_SIZE).flush(collection(USERS_PAGE_SIZE, 51), { headers });
     await fixture.whenStable();
     expect(page.textContent).toContain('Total users: 51');
-    expect(page.textContent).toContain('Offset 50');
+    expect(page.textContent).toContain(`Offset ${USERS_PAGE_SIZE}`);
     expect(page.querySelector<HTMLButtonElement>('#next-users')!.disabled).toBe(true);
     click('reload-users');
-    request('java', 50).flush(collection(50, 51), { headers });
+    request('java', USERS_PAGE_SIZE).flush(collection(USERS_PAGE_SIZE, 51), { headers });
     await fixture.whenStable();
     click('previous-users');
     request().flush(collection(0, 51), { headers });
@@ -131,7 +142,7 @@ describe('Application users collection', () => {
     request().flush(collection(0, 51), { headers });
     await fixture.whenStable();
     click('next-users');
-    request('java', 50).flush(collection(50, 7), { headers });
+    request('java', USERS_PAGE_SIZE).flush(collection(USERS_PAGE_SIZE, 7), { headers });
     await fixture.whenStable();
     expect(page.textContent).toContain('No users in this window');
     expect(page.textContent).toContain('Total users: 7');
@@ -140,14 +151,17 @@ describe('Application users collection', () => {
   });
 
   it.each([
-    [401, 'Sign in again', false],
-    [403, 'requires an administrator', true],
-    [400, 'pagination request is invalid', true],
-    [503, 'service is unavailable', true],
+    [HttpStatusCode.Unauthorized, 'Sign in again', false],
+    [HttpStatusCode.Forbidden, 'requires an administrator', true],
+    [HttpStatusCode.BadRequest, 'pagination request is invalid', true],
+    [HttpStatusCode.ServiceUnavailable, 'service is unavailable', true],
   ])(
     'handles HTTP %s with safe feedback and no stale rows',
     async (status, message, authenticated) => {
-      await login('java', status === 403 ? 'regular@example.test' : user.email);
+      await login(
+        'java',
+        status === HttpStatusCode.Forbidden ? 'regular@example.test' : user.email,
+      );
       await loaded();
       click('reload-users');
       await fixture.whenStable();
@@ -158,7 +172,7 @@ describe('Application users collection', () => {
       expect(page.textContent).toContain(message);
       expect(page.textContent).not.toContain('private-backend-detail');
       expect(page.querySelector('tbody')).toBeNull();
-      if (status === 401) {
+      if (status === HttpStatusCode.Unauthorized) {
         expect(session.tokenFor('java')).toBeNull();
         expect(page.querySelector('#reload-users')).toBeNull();
         await login();
@@ -204,7 +218,7 @@ describe('Application users collection', () => {
     expect(session.tokenFor(to)).toBeNull();
     expect(page.querySelector('tbody')).toBeNull();
     expect(page.textContent).not.toContain(user.email);
-    expect(fixture.componentInstance.usersState()).toBe('idle');
+    expect(fixture.componentInstance.usersState()).toBe(UserReadState.Idle);
     await login(to);
     await loaded(to);
     expect(session.tokenFor(to)).toBe(token);

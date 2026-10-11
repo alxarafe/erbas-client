@@ -1,3 +1,14 @@
+# Preserve the original encoded ID: Nginx normalizes $uri before selecting a location.
+map $request_uri $user_detail_path {
+    default "";
+    ~^/backends/(?:java|dotnet)(/api/users/[^/?]+)(?:\?.*)?$ $1;
+}
+map $request_uri $user_detail_upstream {
+    default "";
+    ~^/backends/java/api/users/ ${ERBAS_JAVA_UPSTREAM};
+    ~^/backends/dotnet/api/users/ ${ERBAS_DOTNET_UPSTREAM};
+}
+
 server {
     listen 80;
     server_name _;
@@ -25,6 +36,16 @@ server {
         proxy_pass http://$upstream/api/auth/login;
         include /etc/nginx/auth-proxy.conf;
     }
+    location = /backends/java/api/auth/me {
+        set $upstream "${ERBAS_JAVA_UPSTREAM}";
+        proxy_pass http://$upstream/api/auth/me;
+        include /etc/nginx/user-proxy.conf;
+    }
+    location = /backends/dotnet/api/auth/me {
+        set $upstream "${ERBAS_DOTNET_UPSTREAM}";
+        proxy_pass http://$upstream/api/auth/me;
+        include /etc/nginx/user-proxy.conf;
+    }
     location = /demo/defaults.env {
         default_type text/plain;
         add_header Cache-Control "no-store" always;
@@ -32,27 +53,19 @@ server {
     }
     location = /backends/java/api/users {
         set $upstream "${ERBAS_JAVA_UPSTREAM}";
-        limit_except GET { deny all; }
         proxy_pass http://$upstream/api/users$is_args$args;
-        include /etc/nginx/health-proxy.conf;
-        proxy_set_header Authorization $http_authorization;
-        proxy_cache off;
-        proxy_request_buffering off;
-        proxy_buffering off;
-        access_log off;
+        include /etc/nginx/user-proxy.conf;
     }
     location = /backends/dotnet/api/users {
         set $upstream "${ERBAS_DOTNET_UPSTREAM}";
-        limit_except GET { deny all; }
         proxy_pass http://$upstream/api/users$is_args$args;
-        include /etc/nginx/health-proxy.conf;
-        proxy_set_header Authorization $http_authorization;
-        proxy_cache off;
-        proxy_request_buffering off;
-        proxy_buffering off;
-        access_log off;
+        include /etc/nginx/user-proxy.conf;
     }
     location = /proxy-error { internal; return 502; }
-    location /backends/ { return 404; }
+    location /backends/ {
+        if ($user_detail_path = "") { return 404; }
+        proxy_pass http://$user_detail_upstream$user_detail_path;
+        include /etc/nginx/user-proxy.conf;
+    }
     location / { try_files $uri $uri/ /index.html; }
 }

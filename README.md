@@ -7,9 +7,9 @@
 [![Angular client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
 
 The shared Angular client demonstrates **one executable contract, multiple
-interchangeable implementations**. WEB-003A extends backend selection, public
-Health and AUTH-001 login with authenticated administrator-only USERS-001 /
-COLLECTIONS-001 listing and pagination from published erbas-contract v0.4.0.
+interchangeable implementations**. WEB-003B adds current-user profile and
+administrator user detail to backend selection, public Health, AUTH-001 login and USERS-001 / COLLECTIONS-001 listing
+and pagination from published erbas-contract v0.4.0.
 It uses standalone components, strict TypeScript, HttpClient and signals.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
@@ -26,7 +26,7 @@ Health indicates HTTP process liveness, not database readiness.
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.4.0 |
 | [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of v0.4.0 |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation of v0.4.0 plus platform modules |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health, AUTH-001 and the USERS-001 / COLLECTIONS-001 list from either backend |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health, AUTH-001 and USERS-001 profile/list/detail and COLLECTIONS-001 pagination from either backend |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
 Java and .NET badges report each backend's authoritative `./bin/check`, including
@@ -108,6 +108,8 @@ browser -> 127.0.0.1:48082 -> Nginx :80
                               /backends/dotnet/api/auth/login -> .NET :8080/api/auth/login
                               /backends/java/api/users -> Java :8080/api/users
                               /backends/dotnet/api/users -> .NET :8080/api/users
+                              /backends/{backend}/api/auth/me -> selected backend :8080/api/auth/me
+                              /backends/{backend}/api/users/{id} -> selected backend :8080/api/users/{id}
 ```
 
 The displayed development URLs are informational. Browser requests use relative,
@@ -130,11 +132,13 @@ ERBAS_JAVA_UPSTREAM=my-java-app-1:8080 ./bin/up
 Equivalent settings are `ERBAS_DOTNET_CONTAINER` and `ERBAS_DOTNET_UPSTREAM`.
 Upstreams must be trusted Docker DNS names (with port), reachable on the attached
 networks. These are deployment configuration, not user-provided proxy destinations.
-Only the exact Health, `/api/auth/login` and read-only `/api/users` paths are proxied;
+Only Health, `/api/auth/login`, `/api/auth/me` and read-only users collection/detail
+paths are proxied;
 other `/backends/` paths return 404. Login preserves backend HTTP statuses, JSON
 bodies, `Cache-Control: no-store` and `WWW-Authenticate: Bearer`.
-The users proxy forwards the bearer and pagination query, preserves contractual
-errors and headers, blocks redirects, and disables buffering, caching and access logs.
+Protected proxies forward the bearer, pagination query or encoded opaque ID,
+preserve contractual errors and headers, block redirects, and disable buffering,
+caching and access logs.
 This workflow targets the existing Docker backends, rather than arbitrary host-native
 processes. A deployment-specific network configuration would be needed for those.
 
@@ -145,8 +149,8 @@ processes. A deployment-specific network configuration would be needed for those
 - `app/src/app/health-client.ts`: destination-neutral HTTP client and contract validation.
 - `app/src/app/auth-client.ts`: destination-neutral AUTH-001 login and response validation.
 - `app/src/app/auth-session.ts`: one in-memory session tied to its issuing backend.
-- `app/src/app/users-client.ts`: destination-neutral closed collection validation.
-- `app/src/app/app.*`: Health/login/users presentation, pagination and cancellation.
+- `app/src/app/users-client.ts`: destination-neutral profile/list/detail with one closed User validator.
+- `app/src/app/app.*`: Health/login/profile/users presentation, pagination and cancellation.
 - `Dockerfile`, `compose.yaml`, `docker/`: build, runtime proxy and isolated smoke fixtures.
 - `bin/`: lifecycle and validation workflows; `.github/workflows/ci.yml`: calls `bin/check`.
 
@@ -162,7 +166,7 @@ normal builds use `npm ci`.
 WEB-002 implements the same email/password login form for Java and .NET through
 `POST /api/auth/login` on the same-origin Nginx proxy. Invalid credentials produce
 a neutral message; request, service and invalid-response failures remain distinct.
-The UI never displays tokens, claims or a purported authenticated identity.
+The UI never displays bearer tokens or interprets their format.
 
 The access token is an opaque string, kept only in memory. Java and .NET issue
 different, non-interoperable tokens; each session belongs only to its issuing
@@ -171,15 +175,22 @@ when returning to the previous backend. Reloading also loses the session.
 **Clear session** discards local state only; it does not revoke the server token.
 Only the backend selection is persisted in localStorage.
 
-After login, **Load users** requests the administrator-only collection. The
+After login, `/api/auth/me` loads the current email, enabled and administrator
+flags. A loaded administrator profile offers **Load users** and row **View**
+actions; regular users remain authenticated without administrator controls.
+Backend authorization remains authoritative. **View** fetches a fresh user detail
+through `GET /api/users/{id}` with a safely encoded opaque ID. The
 table shows public user fields and server total; Previous/Next use fixed windows
 of 50 in contractual ID ascending order. 401 discards the unusable session;
 403 preserves it and explains the administrator requirement. Clearing or
-switching sessions cancels requests and removes users. See
-[user listing](docs/full-stack-development.md#authenticated-user-list-web-003a)
+switching sessions cancels requests and removes profile, collection and detail.
+Profile network/5xx/invalid-response failures retain the bearer and allow retry;
+detail 404 reports user not found without clearing authentication. See
+[user listing](docs/full-stack-development.md#authenticated-user-list-web-003a) and
+[profile/detail](docs/full-stack-development.md#current-profile-and-user-detail-web-003b)
 for response validation and error states.
 
-User creation, editing and detail views remain unimplemented. There is no
+User creation and editing remain unimplemented. There is no
 refresh, bearer interceptor, registration, server logout, roles or permissions UI. ERP navigation,
 CRUD, Catalog, AiAgent, SSR, PWA and production deployment remain outside scope.
 Health stays public and independent of authentication. The client does not adapt

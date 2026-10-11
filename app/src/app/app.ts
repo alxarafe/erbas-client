@@ -1,25 +1,27 @@
 import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { BACKENDS } from './backends';
 import { BackendSelection } from './backend-selection';
 import { HealthClient } from './health-client';
 import { AuthClient, InvalidLoginResponseError } from './auth-client';
 import { AuthSession } from './auth-session';
-import { UsersClient, UsersCollection, InvalidUsersResponseError } from './users-client';
+import {
+  UsersClient,
+  User,
+  UsersCollection,
+  InvalidUsersResponseError,
+  USERS_PAGE_SIZE,
+} from './users-client';
+import { UserReadState } from './user-read-state';
 import { DemoDefaults, parseDemoDefaults } from './demo-defaults';
 
+const ADMINISTRATOR_REQUIRED_MESSAGE =
+  'User administration requires an administrator. Your session remains authenticated.';
+const SESSION_UNUSABLE_MESSAGE = 'Your session is no longer usable. Sign in again.';
+
 type HealthState = 'checking' | 'online' | 'error';
-type UsersState =
-  | 'idle'
-  | 'loading'
-  | 'loaded'
-  | 'unauthorized'
-  | 'forbidden'
-  | 'invalid-request'
-  | 'unavailable'
-  | 'invalid-response';
 type LoginState =
   | 'idle'
   | 'submitting'
@@ -58,26 +60,56 @@ export class App {
   };
   private readonly auth = inject(AuthClient);
   readonly users = signal<UsersCollection | null>(null);
-  readonly usersState = signal<UsersState>('idle');
-  readonly usersMessages: Record<UsersState, string> = {
-    idle: 'Sign in, then load the users collection.',
-    loading: 'Loading users…',
-    loaded: 'Users loaded. Ordered by ID ascending.',
-    unauthorized: 'Your session is no longer usable. Sign in again to load users.',
-    forbidden: 'User administration requires an administrator. Your session remains authenticated.',
-    'invalid-request': 'The users pagination request is invalid.',
-    unavailable: 'The users service is unavailable. Try again.',
-    'invalid-response': 'The backend returned an invalid users response.',
+  readonly userStates = UserReadState;
+  readonly usersState = signal<UserReadState>(UserReadState.Idle);
+  readonly usersMessages: Partial<Record<UserReadState, string>> = {
+    [UserReadState.Idle]: 'Sign in, then load the users collection.',
+    [UserReadState.Loading]: 'Loading users…',
+    [UserReadState.Loaded]: 'Users loaded. Ordered by ID ascending.',
+    [UserReadState.Unauthorized]: 'Your session is no longer usable. Sign in again to load users.',
+    [UserReadState.Forbidden]: ADMINISTRATOR_REQUIRED_MESSAGE,
+    [UserReadState.InvalidRequest]: 'The users pagination request is invalid.',
+    [UserReadState.Unavailable]: 'The users service is unavailable. Try again.',
+    [UserReadState.InvalidResponse]: 'The backend returned an invalid users response.',
   };
   readonly previousDisabled = computed(
-    () => this.usersState() !== 'loaded' || this.users()!.offset === 0,
+    () => this.usersState() !== UserReadState.Loaded || this.users()!.offset === 0,
   );
   readonly nextDisabled = computed(
     () =>
-      this.usersState() !== 'loaded' ||
+      this.usersState() !== UserReadState.Loaded ||
       this.users()!.offset + this.users()!.limit >= this.users()!.total,
   );
+  readonly currentUser = signal<User | null>(null);
+  readonly profileState = signal<UserReadState>(UserReadState.Idle);
+  readonly profileMessages: Partial<Record<UserReadState, string>> = {
+    [UserReadState.Idle]: 'Sign in to load your current profile.',
+    [UserReadState.Loading]: 'Loading your profile…',
+    [UserReadState.Loaded]: 'Current profile loaded.',
+    [UserReadState.Unauthorized]: SESSION_UNUSABLE_MESSAGE,
+    [UserReadState.Unavailable]:
+      'Your profile is unavailable. Try again; your session is retained.',
+    [UserReadState.InvalidResponse]: 'The backend returned an invalid profile response.',
+  };
+  readonly administrator = computed(
+    () => this.authenticated() && this.currentUser()?.admin === true,
+  );
+  readonly detailUser = signal<User | null>(null);
+  readonly selectedUserId = signal<string | null>(null);
+  readonly detailState = signal<UserReadState>(UserReadState.Idle);
+  readonly detailMessages: Partial<Record<UserReadState, string>> = {
+    [UserReadState.Idle]: 'Select View in the collection to inspect a user.',
+    [UserReadState.Loading]: 'Loading user detail…',
+    [UserReadState.Loaded]: 'User detail loaded.',
+    [UserReadState.Unauthorized]: SESSION_UNUSABLE_MESSAGE,
+    [UserReadState.Forbidden]: ADMINISTRATOR_REQUIRED_MESSAGE,
+    [UserReadState.NotFound]: 'User not found.',
+    [UserReadState.Unavailable]: 'User detail is unavailable. Try again.',
+    [UserReadState.InvalidResponse]: 'The backend returned an invalid user detail response.',
+  };
   private readonly usersClient = inject(UsersClient);
+  private profileRequest?: Subscription;
+  private detailRequest?: Subscription;
   private usersRequest?: Subscription;
   private readonly health = inject(HealthClient);
   private request?: Subscription;
@@ -96,6 +128,8 @@ export class App {
       this.request?.unsubscribe();
       this.loginRequest?.unsubscribe();
       this.usersRequest?.unsubscribe();
+      this.profileRequest?.unsubscribe();
+      this.detailRequest?.unsubscribe();
     });
   }
 
@@ -109,7 +143,7 @@ export class App {
     event.preventDefault();
     const backend = this.selection.selected();
     this.loginRequest?.unsubscribe();
-    this.clearUsers();
+    this.clearProtectedData();
     this.session.clear();
     this.loginState.set('submitting');
     this.loginRequest = this.auth
@@ -119,14 +153,21 @@ export class App {
           password.value = '';
           this.session.establish(backend.id, response.accessToken);
           this.loginState.set('authenticated');
+          this.loadProfile();
         },
         error: (error: unknown) => {
           if (error instanceof InvalidLoginResponseError) {
             this.loginState.set('invalid-response');
-          } else if (error instanceof HttpErrorResponse && error.status === 401) {
+          } else if (
+            error instanceof HttpErrorResponse &&
+            error.status === HttpStatusCode.Unauthorized
+          ) {
             password.value = '';
             this.loginState.set('invalid-credentials');
-          } else if (error instanceof HttpErrorResponse && error.status === 400) {
+          } else if (
+            error instanceof HttpErrorResponse &&
+            error.status === HttpStatusCode.BadRequest
+          ) {
             this.loginState.set('invalid-request');
           } else {
             this.loginState.set('unavailable');
@@ -137,7 +178,7 @@ export class App {
 
   clearSession(): void {
     this.loginRequest?.unsubscribe();
-    this.clearUsers();
+    this.clearProtectedData();
     this.session.clear();
     this.loginState.set('idle');
   }
@@ -145,38 +186,124 @@ export class App {
   private clearUsers(): void {
     this.usersRequest?.unsubscribe();
     this.users.set(null);
-    this.usersState.set('idle');
+    this.usersState.set(UserReadState.Idle);
+  }
+
+  private clearDetail(): void {
+    this.detailRequest?.unsubscribe();
+    this.detailUser.set(null);
+    this.selectedUserId.set(null);
+    this.detailState.set(UserReadState.Idle);
+  }
+
+  private clearProtectedData(): void {
+    this.profileRequest?.unsubscribe();
+    this.currentUser.set(null);
+    this.profileState.set(UserReadState.Idle);
+    this.clearUsers();
+    this.clearDetail();
+  }
+
+  loadProfile(): void {
+    const backend = this.selection.selected();
+    const bearer = this.session.tokenFor(backend.id);
+    this.clearProtectedData();
+    if (bearer === null) return;
+    this.profileState.set(UserReadState.Loading);
+    this.profileRequest = this.usersClient.current(backend.proxyBaseUrl, bearer).subscribe({
+      next: (user) => {
+        this.currentUser.set(user);
+        this.profileState.set(UserReadState.Loaded);
+      },
+      error: (error: unknown) => {
+        const state = this.readError(error);
+        // /me does not define 403 or 404; do not invent authorization semantics.
+        this.profileState.set(
+          state === UserReadState.Forbidden || state === UserReadState.NotFound
+            ? UserReadState.Unavailable
+            : state,
+        );
+      },
+    });
+  }
+
+  viewUser(id: string): void {
+    const backend = this.selection.selected();
+    const bearer = this.session.tokenFor(backend.id);
+    this.clearDetail();
+    if (bearer === null || !this.administrator()) return;
+    this.selectedUserId.set(id);
+    this.detailState.set(UserReadState.Loading);
+    this.detailRequest = this.usersClient.detail(backend.proxyBaseUrl, bearer, id).subscribe({
+      next: (user) => {
+        this.detailUser.set(user);
+        this.detailState.set(UserReadState.Loaded);
+      },
+      error: (error: unknown) => this.detailState.set(this.readError(error)),
+    });
+  }
+
+  private readError(error: unknown): UserReadState {
+    if (
+      error instanceof InvalidUsersResponseError ||
+      (error instanceof HttpErrorResponse && error.status === HttpStatusCode.Ok)
+    )
+      return UserReadState.InvalidResponse;
+    if (error instanceof HttpErrorResponse) {
+      switch (error.status) {
+        case HttpStatusCode.Unauthorized:
+          this.clearSession();
+          return UserReadState.Unauthorized;
+        case HttpStatusCode.Forbidden:
+          return UserReadState.Forbidden;
+        case HttpStatusCode.NotFound:
+          return UserReadState.NotFound;
+      }
+    }
+    return UserReadState.Unavailable;
   }
 
   loadUsers(offset = this.users()?.offset ?? 0): void {
     const backend = this.selection.selected();
     const bearer = this.session.tokenFor(backend.id);
     this.clearUsers();
-    if (bearer === null) return;
-    this.usersState.set('loading');
-    this.usersRequest = this.usersClient.list(backend.proxyBaseUrl, bearer, offset, 50).subscribe({
-      next: (collection) => {
-        this.users.set(collection);
-        this.usersState.set('loaded');
-      },
-      error: (error: unknown) => {
-        if (
-          error instanceof InvalidUsersResponseError ||
-          (error instanceof HttpErrorResponse && error.status === 200)
-        ) {
-          this.usersState.set('invalid-response');
-        } else if (error instanceof HttpErrorResponse && error.status === 401) {
-          this.clearSession();
-          this.usersState.set('unauthorized');
-        } else if (error instanceof HttpErrorResponse && error.status === 403) {
-          this.usersState.set('forbidden');
-        } else if (error instanceof HttpErrorResponse && error.status === 400) {
-          this.usersState.set('invalid-request');
-        } else {
-          this.usersState.set('unavailable');
-        }
-      },
-    });
+    this.clearDetail();
+    if (bearer === null || !this.administrator()) return;
+    this.usersState.set(UserReadState.Loading);
+    this.usersRequest = this.usersClient
+      .list(backend.proxyBaseUrl, bearer, offset, USERS_PAGE_SIZE)
+      .subscribe({
+        next: (collection) => {
+          this.users.set(collection);
+          this.usersState.set(UserReadState.Loaded);
+        },
+        error: (error: unknown) => {
+          if (
+            error instanceof InvalidUsersResponseError ||
+            (error instanceof HttpErrorResponse && error.status === HttpStatusCode.Ok)
+          ) {
+            this.usersState.set(UserReadState.InvalidResponse);
+          } else if (
+            error instanceof HttpErrorResponse &&
+            error.status === HttpStatusCode.Unauthorized
+          ) {
+            this.clearSession();
+            this.usersState.set(UserReadState.Unauthorized);
+          } else if (
+            error instanceof HttpErrorResponse &&
+            error.status === HttpStatusCode.Forbidden
+          ) {
+            this.usersState.set(UserReadState.Forbidden);
+          } else if (
+            error instanceof HttpErrorResponse &&
+            error.status === HttpStatusCode.BadRequest
+          ) {
+            this.usersState.set(UserReadState.InvalidRequest);
+          } else {
+            this.usersState.set(UserReadState.Unavailable);
+          }
+        },
+      });
   }
 
   previousUsers(): void {

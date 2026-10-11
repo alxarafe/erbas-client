@@ -100,3 +100,45 @@ class ProvisionTests(unittest.TestCase):
         self.assertIsNone(demo.NoRedirect().redirect_request(None, None, None, None, None, None))
         with self.assertRaises(demo.DemoError):
             demo.unique_object([("code", "forbidden"), ("code", "forbidden")])
+
+
+class UserReadTests(unittest.TestCase):
+    def responses(self, fault=None):
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        headers["Cache-Control"] = "no-store"
+        admin = {"id": "opaque /?# user", "email": VALUES[demo.NAMES[0]], "enabled": True, "admin": True}
+        regular = {"id": "opaque-regular", "email": VALUES[demo.NAMES[2]], "enabled": True, "admin": False}
+        def reply(url, payload=None, token=None):
+            if url.endswith("/api/auth/login"):
+                return demo.HTTPStatus.OK, headers, {"accessToken": "fixture-admin" if payload["email"] == admin["email"] else "fixture-regular"}
+            self.assertIsNone(payload, "Protected user checks must remain read-only")
+            if token == demo.INVALID_BEARER:
+                challenge = Message(); challenge["Cache-Control"] = "no-store"; challenge["WWW-Authenticate"] = "Bearer"
+                return demo.HTTPStatus.UNAUTHORIZED, challenge, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.UNAUTHORIZED]}
+            if url.endswith(demo.CURRENT_USER_ENDPOINT):
+                body = admin if token == "fixture-admin" else regular
+                return demo.HTTPStatus.OK, headers, ({**body, "extra": True} if fault == "profile" else body)
+            if token == "fixture-regular":
+                return demo.HTTPStatus.FORBIDDEN, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.FORBIDDEN]}
+            if url.endswith(demo.UNKNOWN_USER_ID):
+                return demo.HTTPStatus.NOT_FOUND, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND]}
+            if "?offset=" in url:
+                body = {"items": [admin], "offset": 0, "limit": demo.USERS_PAGE_SIZE, "total": 1,
+                        "order": [{"field": "id", "direction": "asc"}]}
+                if fault == "collection": body["order"] = []
+                return demo.HTTPStatus.OK, headers, body
+            self.assertTrue(url.endswith(demo.quote(admin["id"], safe="")))
+            return demo.HTTPStatus.OK, headers, ({**admin, "enabled": "true"} if fault == "detail" else admin)
+        return reply
+
+    def test_real_read_verification_is_read_only_and_encodes_opaque_id(self):
+        with patch.object(demo, "request", side_effect=self.responses()) as request, patch("builtins.print"):
+            demo.verify_reads("Fixture", "http://fixture", VALUES)
+        self.assertEqual(request.call_count, 11)
+
+    def test_noncontractual_profile_collection_and_detail_fail_safely(self):
+        for fault in ("profile", "collection", "detail"):
+            with self.subTest(fault=fault), patch.object(demo, "request", side_effect=self.responses(fault)):
+                with self.assertRaises(demo.DemoError):
+                    demo.verify_reads("Fixture", "http://fixture", VALUES)
