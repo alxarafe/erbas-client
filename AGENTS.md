@@ -2,7 +2,11 @@
 
 WEB-001 implements the Angular application and Docker runtime; WEB-002 adds
 shared AUTH-001 login, backend-bound in-memory session and real demo verification.
-Both are completed. Do not create
+WEB-003A adds administrator-only USERS-001 / COLLECTIONS-001 listing and pagination
+against published erbas-contract v0.4.0, with the same code for both backends.
+401 clears the session; 403 preserves it. Backend switching and Clear session
+cancel protected requests and discard user data. No user creation, editing or
+detail view is implemented. These slices are completed. Do not create
 placeholder applications or containers. The client owns
 `ERBAS_CLIENT_PORT` mapping: default loopback host port 48082 to container port 80.
 Follow the common convention in `erbas-contract/docs/development-ports.md`.

@@ -1,6 +1,6 @@
 <main>
   <header>
-    <p class="eyebrow">SHARED CLIENT · WEB-002</p>
+    <p class="eyebrow">SHARED CLIENT · WEB-003A</p>
     <h1>ERBAS</h1>
     <p>One executable contract. Multiple interchangeable implementations.</p>
   </header>
@@ -99,5 +99,75 @@
       <p>Clear session discards this browser's local session only.</p>
       <button type="button" (click)="clearSession()">Clear session</button>
     }
+  </section>
+  <section
+    class="users"
+    aria-labelledby="users-heading"
+    [attr.aria-busy]="usersState() === 'loading'"
+  >
+    <h2 id="users-heading">Users</h2>
+    <p>Administrator-only user collection · ERBAS Contract v0.4.0.</p>
+    <p aria-live="polite" aria-atomic="true">{{ usersMessages[usersState()] }}</p>
+    @if (!authenticated()) {
+      <p>Authentication is required for the selected backend.</p>
+    } @else {
+      <button
+        id="reload-users"
+        type="button"
+        (click)="loadUsers()"
+        [disabled]="usersState() === 'loading'"
+      >
+        {{ usersState() === 'idle' ? 'Load users' : 'Reload users' }}
+      </button>
+    }
+    @if (users(); as collection) {
+      <p>Total users: {{ collection.total }}</p>
+      <p>
+        Offset {{ collection.offset }} · Limit {{ collection.limit }} · Returned
+        {{ collection.items.length }}
+      </p>
+      @if (collection.items.length === 0) {
+        <p>No users in this window.</p>
+      } @else {
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Users table">
+          <table>
+            <caption>
+              Users ordered by ID ascending
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Email</th>
+                <th scope="col">Enabled</th>
+                <th scope="col">Administrator</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (user of collection.items; track $index) {
+                <tr>
+                  <td>{{ user.id }}</td>
+                  <td>{{ user.email }}</td>
+                  <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
+                  <td>{{ user.admin ? 'Yes' : 'No' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+    <nav class="pagination" aria-label="Users pagination">
+      <button
+        id="previous-users"
+        type="button"
+        (click)="previousUsers()"
+        [disabled]="previousDisabled()"
+      >
+        Previous
+      </button>
+      <button id="next-users" type="button" (click)="nextUsers()" [disabled]="nextDisabled()">
+        Next
+      </button>
+    </nav>
   </section>
 </main>

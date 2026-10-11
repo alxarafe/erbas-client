@@ -7,9 +7,19 @@ import { BackendSelection } from './backend-selection';
 import { HealthClient } from './health-client';
 import { AuthClient, InvalidLoginResponseError } from './auth-client';
 import { AuthSession } from './auth-session';
+import { UsersClient, UsersCollection, InvalidUsersResponseError } from './users-client';
 import { DemoDefaults, parseDemoDefaults } from './demo-defaults';
 
 type HealthState = 'checking' | 'online' | 'error';
+type UsersState =
+  | 'idle'
+  | 'loading'
+  | 'loaded'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'invalid-request'
+  | 'unavailable'
+  | 'invalid-response';
 type LoginState =
   | 'idle'
   | 'submitting'
@@ -47,6 +57,28 @@ export class App {
     'invalid-response': 'The backend returned an invalid login response.',
   };
   private readonly auth = inject(AuthClient);
+  readonly users = signal<UsersCollection | null>(null);
+  readonly usersState = signal<UsersState>('idle');
+  readonly usersMessages: Record<UsersState, string> = {
+    idle: 'Sign in, then load the users collection.',
+    loading: 'Loading users…',
+    loaded: 'Users loaded. Ordered by ID ascending.',
+    unauthorized: 'Your session is no longer usable. Sign in again to load users.',
+    forbidden: 'User administration requires an administrator. Your session remains authenticated.',
+    'invalid-request': 'The users pagination request is invalid.',
+    unavailable: 'The users service is unavailable. Try again.',
+    'invalid-response': 'The backend returned an invalid users response.',
+  };
+  readonly previousDisabled = computed(
+    () => this.usersState() !== 'loaded' || this.users()!.offset === 0,
+  );
+  readonly nextDisabled = computed(
+    () =>
+      this.usersState() !== 'loaded' ||
+      this.users()!.offset + this.users()!.limit >= this.users()!.total,
+  );
+  private readonly usersClient = inject(UsersClient);
+  private usersRequest?: Subscription;
   private readonly health = inject(HealthClient);
   private request?: Subscription;
   private loginRequest?: Subscription;
@@ -63,6 +95,7 @@ export class App {
       demoRequest.unsubscribe();
       this.request?.unsubscribe();
       this.loginRequest?.unsubscribe();
+      this.usersRequest?.unsubscribe();
     });
   }
 
@@ -76,6 +109,7 @@ export class App {
     event.preventDefault();
     const backend = this.selection.selected();
     this.loginRequest?.unsubscribe();
+    this.clearUsers();
     this.session.clear();
     this.loginState.set('submitting');
     this.loginRequest = this.auth
@@ -103,8 +137,55 @@ export class App {
 
   clearSession(): void {
     this.loginRequest?.unsubscribe();
+    this.clearUsers();
     this.session.clear();
     this.loginState.set('idle');
+  }
+
+  private clearUsers(): void {
+    this.usersRequest?.unsubscribe();
+    this.users.set(null);
+    this.usersState.set('idle');
+  }
+
+  loadUsers(offset = this.users()?.offset ?? 0): void {
+    const backend = this.selection.selected();
+    const bearer = this.session.tokenFor(backend.id);
+    this.clearUsers();
+    if (bearer === null) return;
+    this.usersState.set('loading');
+    this.usersRequest = this.usersClient.list(backend.proxyBaseUrl, bearer, offset, 50).subscribe({
+      next: (collection) => {
+        this.users.set(collection);
+        this.usersState.set('loaded');
+      },
+      error: (error: unknown) => {
+        if (
+          error instanceof InvalidUsersResponseError ||
+          (error instanceof HttpErrorResponse && error.status === 200)
+        ) {
+          this.usersState.set('invalid-response');
+        } else if (error instanceof HttpErrorResponse && error.status === 401) {
+          this.clearSession();
+          this.usersState.set('unauthorized');
+        } else if (error instanceof HttpErrorResponse && error.status === 403) {
+          this.usersState.set('forbidden');
+        } else if (error instanceof HttpErrorResponse && error.status === 400) {
+          this.usersState.set('invalid-request');
+        } else {
+          this.usersState.set('unavailable');
+        }
+      },
+    });
+  }
+
+  previousUsers(): void {
+    if (!this.previousDisabled())
+      this.loadUsers(Math.max(0, this.users()!.offset - this.users()!.limit));
+  }
+
+  nextUsers(): void {
+    if (!this.nextDisabled()) this.loadUsers(this.users()!.offset + this.users()!.limit);
   }
 
   check(baseUrl = this.selection.selected().proxyBaseUrl): void {
