@@ -2,9 +2,10 @@ const assert = require('node:assert/strict');
 const USERS_ENDPOINT = '/api/users';
 const CURRENT_USER_ENDPOINT = '/api/auth/me';
 const USER_HTTP = { accept: 'Accept', authorization: 'Authorization', json: 'application/json',
-  contentType: 'content-type', cacheControl: 'cache-control', noStore: 'no-store', bearer: 'Bearer' };
+  contentType: 'content-type', cacheControl: 'cache-control', noStore: 'no-store', bearer: 'Bearer', challenge: 'www-authenticate' };
 const USER_FIELDS = 'admin,email,enabled,id';
-const READ_STATUS = { ok: 200, unauthorized: 401, forbidden: 403, notFound: 404, badGateway: 502 };
+const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', conflict: 'email_conflict' };
+const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409, unauthorized: 401, forbidden: 403, notFound: 404, badGateway: 502 };
 (async () => {
   let ready = false;
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -67,7 +68,7 @@ const READ_STATUS = { ok: 200, unauthorized: 401, forbidden: 403, notFound: 404,
     assert.equal(listed.headers.get('cache-control'), 'no-store');
     assert.equal(listed.headers.get('content-type'), 'application/json');
     assert.deepEqual(await listed.json(), {
-      items: [{ id: 'opaque-b', email: 'regular@example.test', enabled: true, admin: false }],
+      items: [{ id: 'opaque-a', email: 'mock@example.test', enabled: true, admin: true }],
       offset: 1, limit: 1, total: 3, order: [{ field: 'id', direction: 'asc' }],
     });
     for (const [offset, limit, bearer, status, code] of [
@@ -84,7 +85,40 @@ const READ_STATUS = { ok: 200, unauthorized: 401, forbidden: 403, notFound: 404,
     const redirected = await users(302, 50);
     assert.equal(redirected.status, 502);
     assert.equal(redirected.headers.get('location'), null);
-    assert.equal((await users(0, 50, body.accessToken, 'POST')).status, 403);
+    const createBody = { email: ' New-user@example.test ', password: ' 😀e\u0301 whitespace password ', admin: false };
+    const create = (request, bearer = body.accessToken) => fetch(`http://client/backends/${backend}${USERS_ENDPOINT}`, {
+      method: 'POST', redirect: 'manual', headers: {
+        [USER_HTTP.accept]: USER_HTTP.json, [USER_HTTP.contentType]: USER_HTTP.json,
+        [USER_HTTP.authorization]: `${USER_HTTP.bearer} ${bearer}`,
+      }, body: JSON.stringify(request),
+    });
+    const created = await create(createBody);
+    assert.equal(created.status, READ_STATUS.created);
+    assert.equal(created.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+    assert.equal(created.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+    const newUser = await created.json();
+    assert.ok(Object.keys(newUser).sort().join(',') === USER_FIELDS);
+    assert.ok(newUser.email === createBody.email && newUser.admin === createBody.admin && newUser.enabled === true);
+    assert.ok(typeof newUser.id === 'string' && newUser.id.length > 0);
+    const afterCreate = await users(0, 50);
+    const newWindow = await afterCreate.json();
+    assert.equal(newWindow.total, 4);
+    assert.ok(newWindow.items.some(user => JSON.stringify(user) === JSON.stringify(newUser)));
+    assert.deepEqual(newWindow.items.map(user => user.id), newWindow.items.map(user => user.id).sort());
+    for (const [request, bearer, status, code] of [
+      [{ ...createBody, password: 'short' }, body.accessToken, READ_STATUS.invalidRequest, USER_ERRORS.invalidRequest],
+      [createBody, 'invalid-bearer', READ_STATUS.unauthorized, USER_ERRORS.unauthorized],
+      [createBody, 'fictitious-regular-token', READ_STATUS.forbidden, USER_ERRORS.forbidden],
+      [createBody, body.accessToken, READ_STATUS.conflict, USER_ERRORS.conflict],
+    ]) {
+      const failure = await create(request, bearer);
+      assert.equal(failure.status, status);
+      assert.equal(failure.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+      assert.equal(failure.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+      assert.equal(failure.headers.get(USER_HTTP.challenge), status === READ_STATUS.unauthorized ? USER_HTTP.bearer : null);
+      assert.ok(JSON.stringify(await failure.json()) === JSON.stringify({ code }));
+    }
+    console.log(`OK: ${backend} creation proxy (201/400/401/403/409, unchanged fields, coherent collection).`);
     const protectedGet = path => fetch(`http://client/backends/${backend}${path}`, {
       redirect: 'manual', headers: { [USER_HTTP.accept]: USER_HTTP.json,
         [USER_HTTP.authorization]: `${USER_HTTP.bearer} ${body.accessToken}` },
@@ -111,7 +145,10 @@ const READ_STATUS = { ok: 200, unauthorized: 401, forbidden: 403, notFound: 404,
     for (const method of ['POST', 'PATCH', 'DELETE']) {
       const mutation = await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}/opaque-a`, { method });
       assert.equal(mutation.status, READ_STATUS.forbidden);
+      assert.equal((await fetch(`http://client/backends/${backend}${CURRENT_USER_ENDPOINT}`, { method })).status, READ_STATUS.forbidden);
     }
+    for (const method of ['PATCH', 'DELETE'])
+      assert.equal((await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}`, { method })).status, READ_STATUS.forbidden);
     assert.equal((await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}/opaque-a/extra`)).status, READ_STATUS.notFound);
     console.log(`OK: ${backend} read-only profile/detail proxies, encoded opaque ID, no-store, 401/404 and redirect/mutation blocking.`);
     console.log(`OK: ${backend} mock users proxy (bearer, query, 200/400/401/403, no-store and redirect blocking).`);

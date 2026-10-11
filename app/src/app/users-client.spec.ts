@@ -1,7 +1,21 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { throwError } from 'rxjs';
+import {
+  HttpClient,
+  HttpErrorResponse,
+  HttpHeaders,
+  HttpStatusCode,
+  provideHttpClient,
+} from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { UsersClient, InvalidUsersResponseError } from './users-client';
+import {
+  UsersClient,
+  InvalidUsersResponseError,
+  USERS_ENDPOINT,
+  USER_HTTP,
+  USER_CREATE_ERRORS,
+  USER_PASSWORD_LENGTH,
+} from './users-client';
 
 describe('Users client', () => {
   let client: UsersClient;
@@ -137,5 +151,189 @@ describe('Users client', () => {
   ])('rejects offset %s / limit %s before issuing HTTP', (offset, limit) => {
     expect(() => client.list('/backends/any', 'token', offset, limit)).toThrow(RangeError);
     http.expectNone(() => true);
+  });
+});
+
+describe('User creation client', () => {
+  let client: UsersClient, http: HttpTestingController;
+  const base = '/backends/any';
+  const bearer = 'opaque-fixture-token';
+  const request = {
+    email: ' untouched-not-an-email ',
+    password: ' 😀e\u0301 unchanged password ',
+    admin: false,
+  };
+  const user = { id: 'opaque-created', email: request.email, enabled: true, admin: request.admin };
+  const headers = {
+    [USER_HTTP.contentType]: `${USER_HTTP.json}; charset=utf-8`,
+    [USER_HTTP.cacheControl]: USER_HTTP.noStore,
+  };
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    client = TestBed.inject(UsersClient);
+    http = TestBed.inject(HttpTestingController);
+  });
+  afterEach(() => http.verify());
+  const send = () => {
+    const next = vi.fn(),
+      error = vi.fn();
+    client.create(base, bearer, request).subscribe({ next, error });
+    return { next, error, req: http.expectOne(base + USERS_ENDPOINT) };
+  };
+  it('posts exact unchanged fields and explicit JSON/bearer headers', () => {
+    const { req, next } = send();
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(request);
+    expect(Object.keys(req.request.body).sort()).toEqual(['admin', 'email', 'password']);
+    expect(req.request.headers.get(USER_HTTP.accept)).toBe(USER_HTTP.json);
+    expect(req.request.headers.get(USER_HTTP.contentType)).toBe(USER_HTTP.json);
+    expect(req.request.headers.get(USER_HTTP.authorization)).toBe(`${USER_HTTP.bearer} ${bearer}`);
+    expect(req.request.urlWithParams).not.toContain(bearer);
+    expect(req.request.urlWithParams).not.toContain(request.password);
+    req.flush(user, { status: HttpStatusCode.Created, statusText: 'Created', headers });
+    expect(next).toHaveBeenCalledExactlyOnceWith(user);
+  });
+  it.each([
+    null,
+    [],
+    {},
+    { ...user, password: 'private-value' },
+    { ...user, id: '' },
+    { ...user, email: '' },
+    { ...user, enabled: false },
+    { ...user, email: 'transformed' },
+    { ...user, admin: true },
+    { ...user, enabled: 1 },
+    { ...user, admin: 'false' },
+  ])('rejects malformed or semantically incorrect created User %#', (body) => {
+    const { req, error, next } = send();
+    req.flush(body, { status: HttpStatusCode.Created, statusText: 'Created', headers });
+    expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+    expect(next).not.toHaveBeenCalled();
+  });
+  it('does not accept HTTP 200', () => {
+    const { req, error } = send();
+    req.flush(user, { headers });
+    expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+  });
+  it.each([
+    { [USER_HTTP.contentType]: 'text/plain', [USER_HTTP.cacheControl]: USER_HTTP.noStore },
+    { [USER_HTTP.contentType]: USER_HTTP.json },
+    { [USER_HTTP.contentType]: USER_HTTP.json, [USER_HTTP.cacheControl]: 'public' },
+  ])('rejects invalid successful headers %#', (badHeaders) => {
+    const { req, error } = send();
+    req.flush(user, {
+      status: HttpStatusCode.Created,
+      statusText: 'Created',
+      headers: badHeaders as Record<string, string>,
+    });
+    expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+  });
+  it('classifies Angular JSON parse errors at status 201 as invalid response', () => {
+    const failure = new HttpErrorResponse({
+      status: HttpStatusCode.Created,
+      headers: new HttpHeaders(headers),
+      error: { error: new SyntaxError(), text: '{bad json' },
+    });
+    const httpClient = TestBed.inject(HttpClient);
+    vi.spyOn(httpClient, 'post').mockReturnValue(throwError(() => failure));
+    const error = vi.fn();
+    client.create(base, bearer, request).subscribe({ error });
+    expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+  });
+  for (const [statusText, status] of [
+    ['Bad Request', HttpStatusCode.BadRequest],
+    ['Unauthorized', HttpStatusCode.Unauthorized],
+    ['Forbidden', HttpStatusCode.Forbidden],
+    ['Conflict', HttpStatusCode.Conflict],
+  ] as const) {
+    const code = USER_CREATE_ERRORS[status];
+    const errorHeaders = {
+      ...headers,
+      ...(status === HttpStatusCode.Unauthorized
+        ? { [USER_HTTP.challenge]: USER_HTTP.bearer }
+        : {}),
+    };
+    it(`preserves validated ${status} ${code}`, () => {
+      const { req, error } = send();
+      req.flush({ code }, { status, statusText, headers: errorHeaders });
+      expect(error).toHaveBeenCalledWith(expect.any(HttpErrorResponse));
+      expect(error.mock.calls[0][0].status).toBe(status);
+    });
+    it.each([null, {}, { code: 'unexpected' }, { code, extra: true }])(
+      `rejects invalid ${status} error body %#`,
+      (body) => {
+        const { req, error } = send();
+        req.flush(body, { status, statusText, headers: errorHeaders });
+        expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+      },
+    );
+    it.each([
+      { ...errorHeaders, [USER_HTTP.contentType]: 'text/plain' },
+      { ...errorHeaders, [USER_HTTP.cacheControl]: 'public' },
+      { [USER_HTTP.contentType]: USER_HTTP.json },
+    ])(`rejects invalid ${status} error headers %#`, (badHeaders) => {
+      const { req, error } = send();
+      req.flush({ code }, { status, statusText, headers: badHeaders as Record<string, string> });
+      expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+    });
+  }
+  it.each([
+    [HttpStatusCode.Unauthorized, undefined],
+    [HttpStatusCode.Unauthorized, 'Basic'],
+    [HttpStatusCode.Forbidden, USER_HTTP.bearer],
+    [HttpStatusCode.Forbidden, ''],
+  ] as const)('rejects wrong challenge for %s', (status, challenge) => {
+    const { req, error } = send();
+    req.flush(
+      { code: USER_CREATE_ERRORS[status] },
+      {
+        status,
+        statusText: 'Denied',
+        headers: {
+          ...headers,
+          ...(challenge === undefined ? {} : { [USER_HTTP.challenge]: challenge }),
+        },
+      },
+    );
+    expect(error).toHaveBeenCalledWith(expect.any(InvalidUsersResponseError));
+  });
+  it.each([
+    HttpStatusCode.Accepted,
+    HttpStatusCode.NoContent,
+    HttpStatusCode.NotFound,
+    HttpStatusCode.InternalServerError,
+  ])('preserves unexpected status %s as HTTP failure', (status) => {
+    const { req, error } = send();
+    req.flush({}, { status, statusText: 'Failure', headers });
+    expect(error).toHaveBeenCalledWith(expect.any(HttpErrorResponse));
+  });
+  it.each([
+    [USER_PASSWORD_LENGTH.minimum - 1, false],
+    [USER_PASSWORD_LENGTH.minimum, true],
+    [USER_PASSWORD_LENGTH.maximum, true],
+    [USER_PASSWORD_LENGTH.maximum + 1, false],
+  ])('counts %s supplementary code points with valid=%s', (count, valid) => {
+    const body = { ...request, password: '😀'.repeat(count as number) };
+    if (valid) {
+      client.create(base, bearer, body).subscribe();
+      http
+        .expectOne(base + USERS_ENDPOINT)
+        .flush(user, { status: HttpStatusCode.Created, statusText: 'Created', headers });
+    } else {
+      expect(() => client.create(base, bearer, body)).toThrow(RangeError);
+      http.expectNone(base + USERS_ENDPOINT);
+    }
+  });
+  it('rejects empty email and invalid/extra request properties before HTTP', () => {
+    for (const body of [
+      { ...request, email: '' },
+      { ...request, admin: 'true' },
+      { ...request, enabled: true },
+    ])
+      expect(() => client.create(base, bearer, body as never)).toThrow(RangeError);
+    http.expectNone(base + USERS_ENDPOINT);
   });
 });

@@ -1,6 +1,6 @@
 <main>
   <header>
-    <p class="eyebrow">SHARED CLIENT · WEB-003B</p>
+    <p class="eyebrow">SHARED CLIENT · WEB-003C</p>
     <h1>ERBAS</h1>
     <p>One executable contract. Multiple interchangeable implementations.</p>
   </header>
@@ -151,6 +151,62 @@
       >
         {{ usersState() === userStates.Idle ? 'Load users' : 'Reload users' }}
       </button>
+    }
+    @if (administrator() || createState() === createStates.Unauthorized) {
+      <p aria-live="polite" aria-atomic="true">{{ createMessages[createState()] }}</p>
+    }
+    @if (administrator()) {
+      <form
+        id="create-user"
+        novalidate
+        (submit)="createUser($event, createEmail, createPassword, createAdmin)"
+        [attr.aria-busy]="createState() === createStates.Submitting"
+      >
+        <h3>Create user</h3>
+        <label for="create-email">Email</label>
+        <input
+          #createEmail
+          id="create-email"
+          type="text"
+          inputmode="email"
+          autocomplete="off"
+          required
+        />
+        <label for="create-password">Password</label>
+        <input
+          #createPassword
+          id="create-password"
+          type="password"
+          autocomplete="new-password"
+          required
+          aria-describedby="create-password-help"
+        />
+        <p id="create-password-help">
+          {{ passwordLength.minimum }}–{{ passwordLength.maximum }} Unicode code points; whitespace
+          is preserved.
+        </p>
+        <label for="create-admin" class="checkbox-label">
+          <input #createAdmin id="create-admin" type="checkbox" /> Administrator
+        </label>
+        <button type="submit" [disabled]="createState() === createStates.Submitting">
+          Create user
+        </button>
+      </form>
+    }
+    @if (createdUser(); as user) {
+      <div id="created-user" aria-live="polite">
+        <h3>Created user</h3>
+        <dl>
+          <dt>ID</dt>
+          <dd>{{ user.id }}</dd>
+          <dt>Email</dt>
+          <dd>{{ user.email }}</dd>
+          <dt>Enabled</dt>
+          <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
+          <dt>Administrator</dt>
+          <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
+        </dl>
+      </div>
     }
     @if (users(); as collection) {
       <p>Total users: {{ collection.total }}</p>

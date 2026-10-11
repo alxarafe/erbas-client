@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpResponse, HttpStatusCode } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpResponse, HttpStatusCode } from '@angular/common/http';
+import { Observable, catchError, map, throwError } from 'rxjs';
 
 // Shared protected-user protocol values; neither IDs nor bearers are interpreted.
 export const USERS_ENDPOINT = '/api/users';
@@ -15,7 +15,37 @@ export const USER_HTTP = {
   json: 'application/json',
   noStore: 'no-store',
   bearer: 'Bearer',
+  challenge: 'WWW-Authenticate',
 } as const;
+
+export const USER_PASSWORD_LENGTH = { minimum: 12, maximum: 256 } as const;
+export interface CreateUserRequest {
+  readonly email: string;
+  readonly password: string;
+  readonly admin: boolean;
+}
+export const USER_CREATE_ERRORS = {
+  [HttpStatusCode.BadRequest]: 'invalid_request',
+  [HttpStatusCode.Unauthorized]: 'unauthorized',
+  [HttpStatusCode.Forbidden]: 'forbidden',
+  [HttpStatusCode.Conflict]: 'email_conflict',
+} as const;
+const CREATE_FIELDS: readonly (keyof CreateUserRequest)[] = ['email', 'password', 'admin'];
+const ERROR_FIELDS = ['code'];
+
+export function isCreateUserRequest(value: unknown): value is CreateUserRequest {
+  if (
+    !object(value) ||
+    !keys(value, CREATE_FIELDS) ||
+    typeof value['email'] !== 'string' ||
+    value['email'].length === 0 ||
+    typeof value['password'] !== 'string' ||
+    typeof value['admin'] !== 'boolean'
+  )
+    return false;
+  const length = Array.from(value['password']).length;
+  return length >= USER_PASSWORD_LENGTH.minimum && length <= USER_PASSWORD_LENGTH.maximum;
+}
 
 export interface User {
   readonly id: string;
@@ -104,9 +134,12 @@ function collection(body: unknown, offset: number, limit: number): body is Users
   );
 }
 
-function validHttp(response: HttpResponse<unknown>): boolean {
+function validHttp(
+  response: HttpResponse<unknown> | HttpErrorResponse,
+  status = HttpStatusCode.Ok,
+): boolean {
   return (
-    response.status === HttpStatusCode.Ok &&
+    response.status === status &&
     response.headers.get(USER_HTTP.contentType)?.split(';')[0]?.trim().toLowerCase() ===
       USER_HTTP.json &&
     response.headers.get(USER_HTTP.cacheControl)?.trim().toLowerCase() === USER_HTTP.noStore
@@ -122,6 +155,55 @@ function headers(bearer: string): Record<string, string> {
 @Injectable({ providedIn: 'root' })
 export class UsersClient {
   private readonly http = inject(HttpClient);
+
+  create(baseUrl: string, bearer: string, request: CreateUserRequest): Observable<User> {
+    if (!isCreateUserRequest(request)) throw new RangeError('Invalid create-user request');
+    // Capture only public expectations; never retain the password in response validation.
+    const { email, admin } = request;
+    return this.http
+      .post<unknown>(
+        `${baseUrl}${USERS_ENDPOINT}`,
+        { email, password: request.password, admin },
+        {
+          headers: { ...headers(bearer), [USER_HTTP.contentType]: USER_HTTP.json },
+          observe: 'response',
+        },
+      )
+      .pipe(
+        map((response) => {
+          if (response.status !== HttpStatusCode.Created && response.status !== HttpStatusCode.Ok)
+            throw new HttpErrorResponse({ status: response.status });
+          if (
+            !validHttp(response, HttpStatusCode.Created) ||
+            !isUser(response.body) ||
+            !response.body.enabled ||
+            response.body.email !== email ||
+            response.body.admin !== admin
+          )
+            throw new InvalidUsersResponseError();
+          return response.body;
+        }),
+        catchError((error: unknown) => {
+          if (error instanceof HttpErrorResponse) {
+            const code = USER_CREATE_ERRORS[error.status as keyof typeof USER_CREATE_ERRORS];
+            if (
+              error.status === HttpStatusCode.Created ||
+              (code !== undefined &&
+                (!validHttp(error, error.status) ||
+                  !object(error.error) ||
+                  !keys(error.error, ERROR_FIELDS) ||
+                  error.error['code'] !== code ||
+                  (error.status === HttpStatusCode.Unauthorized &&
+                    error.headers.get(USER_HTTP.challenge) !== USER_HTTP.bearer) ||
+                  (error.status === HttpStatusCode.Forbidden &&
+                    error.headers.has(USER_HTTP.challenge))))
+            )
+              return throwError(() => new InvalidUsersResponseError());
+          }
+          return throwError(() => error);
+        }),
+      );
+  }
 
   current(baseUrl: string, bearer: string): Observable<User> {
     return this.readUser(`${baseUrl}${CURRENT_USER_ENDPOINT}`, bearer);

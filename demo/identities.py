@@ -20,7 +20,8 @@ USERS_PAGE_SIZE = 50
 UNKNOWN_USER_ID = "web-003b-unknown-user"
 INVALID_BEARER = "web-003b-invalid-bearer"
 PROTECTED_ERRORS = {HTTPStatus.UNAUTHORIZED: "unauthorized", HTTPStatus.FORBIDDEN: "forbidden",
-                    HTTPStatus.NOT_FOUND: "user_not_found"}
+                    HTTPStatus.NOT_FOUND: "user_not_found", HTTPStatus.CONFLICT: "email_conflict"}
+USER_CHALLENGE_HEADER = "WWW-Authenticate"
 
 class DemoError(Exception):
     pass
@@ -147,7 +148,7 @@ def verify_backend(label, base, values, provision=False):
         status, headers, body = request(base + "/api/users", {
             "email": values[NAMES[2]], "password": values[NAMES[3]], "admin": False}, admin_token)
         no_store(headers)
-        require(status == 201 or (status == 409 and body == {"code": "email_conflict"}),
+        require(status == 201 or (status == 409 and body == {"code": PROTECTED_ERRORS[HTTPStatus.CONFLICT]}),
                 f"{label}: regular-user creation failed; response details withheld.")
         if status == 201:
             require(isinstance(body, dict) and set(body) == {"id", "email", "enabled", "admin"}
@@ -161,7 +162,7 @@ def verify_backend(label, base, values, provision=False):
     status, headers, body = request(base + "/api/users", token=user_token)
     require(status == 403 and body == {"code": "forbidden"}, f"{label}: regular-user admin denial failed.")
     no_store(headers)
-    require(headers.get("WWW-Authenticate") is None, f"{label}: unexpected forbidden challenge.")
+    require(headers.get(USER_CHALLENGE_HEADER) is None, f"{label}: unexpected forbidden challenge.")
     print(f"OK: {label} administrator and regular-user login/me; regular-user admin denial.")
 
 
@@ -210,9 +211,25 @@ def verify_reads(label, base, values):
         no_store(headers)
         require(status == expected and body == {"code": PROTECTED_ERRORS[expected]},
                 f"{label}: protected read error failed.")
-        require(headers.get("WWW-Authenticate") == ("Bearer" if expected == HTTPStatus.UNAUTHORIZED else None),
+        require(headers.get(USER_CHALLENGE_HEADER) == ("Bearer" if expected == HTTPStatus.UNAUTHORIZED else None),
                 f"{label}: unexpected protected read challenge.")
     print(f"OK: {label} profile/list/detail, regular-user 403, invalid-bearer 401 and unknown-user 404 (read-only).")
+
+
+def verify_creation(label, base, values):
+    """Existing-email POSTs prove forwarding without adding or changing demo accounts."""
+    admin_token = login(base, values[NAMES[0]], values[NAMES[1]])
+    regular_token = login(base, values[NAMES[2]], values[NAMES[3]])
+    payload = {"email": values[NAMES[2]], "password": values[NAMES[3]], "admin": False}
+    for token, expected, code in (
+            (admin_token, HTTPStatus.CONFLICT, PROTECTED_ERRORS[HTTPStatus.CONFLICT]),
+            (regular_token, HTTPStatus.FORBIDDEN, PROTECTED_ERRORS[HTTPStatus.FORBIDDEN])):
+        status, headers, body = request(base + USERS_ENDPOINT, payload, token=token)
+        no_store(headers)
+        require(status == expected and body == {"code": code}
+                and headers.get(USER_CHALLENGE_HEADER) is None,
+                f"{label}: non-mutating creation check failed; response details withheld.")
+    print(f"OK: {label} POST users: existing-email 409 and regular-user 403 (no accounts created).")
 
 
 def check(java, dotnet, client, values):
@@ -233,14 +250,15 @@ def check(java, dotnet, client, values):
         verify_reads(label + " direct", base, values)
         proxy = client + "/backends/" + backend
         verify_reads("Client → " + label, proxy, values)
+        verify_creation("Client → " + label, proxy, values)
         for email_key, password_key in (NAMES[:2], NAMES[2:]):
             login(proxy, values[email_key], values[password_key])
             status, headers, body = request(proxy + "/api/auth/login", {
                 "email": values[email_key], "password": values[password_key] + "-DEMO-001-incorrect"})
             require(status == 401 and body == {"code": "invalid_credentials"}
-                    and headers.get("WWW-Authenticate") == "Bearer", f"{label}: incorrect-password proxy check failed.")
+                    and headers.get(USER_CHALLENGE_HEADER) == "Bearer", f"{label}: incorrect-password proxy check failed.")
         print(f"OK: Client → {label} administrator/regular login and incorrect-password behavior.")
-    print("DEMO CHECK PASS: both identities, direct/proxied Health and user reads, login proxies and client runtime defaults.")
+    print("DEMO CHECK PASS: both identities, direct/proxied Health, user reads and non-mutating creation checks, login proxies and client runtime defaults.")
 
 
 def main():

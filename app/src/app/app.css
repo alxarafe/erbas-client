@@ -46,7 +46,8 @@ input {
 .users {
   margin-top: 24px;
 }
-.authentication input {
+.authentication input,
+#create-user input:not([type='checkbox']) {
   margin-bottom: 20px;
 }
 dt {
@@ -145,4 +146,17 @@ footer {
   section {
     padding: 20px;
   }
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.checkbox-label input {
+  width: auto;
+}
+#create-user {
+  margin-top: 24px;
 }

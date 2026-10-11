@@ -1,7 +1,7 @@
 import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpClient, HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
-import { Subscription } from 'rxjs';
+import { Subscription, finalize } from 'rxjs';
 import { BACKENDS } from './backends';
 import { BackendSelection } from './backend-selection';
 import { HealthClient } from './health-client';
@@ -13,8 +13,11 @@ import {
   UsersCollection,
   InvalidUsersResponseError,
   USERS_PAGE_SIZE,
+  USER_PASSWORD_LENGTH,
+  isCreateUserRequest,
 } from './users-client';
 import { UserReadState } from './user-read-state';
+import { UserCreateState } from './user-create-state';
 import { DemoDefaults, parseDemoDefaults } from './demo-defaults';
 
 const ADMINISTRATOR_REQUIRED_MESSAGE =
@@ -107,6 +110,22 @@ export class App {
     [UserReadState.Unavailable]: 'User detail is unavailable. Try again.',
     [UserReadState.InvalidResponse]: 'The backend returned an invalid user detail response.',
   };
+  readonly createStates = UserCreateState;
+  readonly createState = signal<UserCreateState>(UserCreateState.Idle);
+  readonly createdUser = signal<User | null>(null);
+  readonly passwordLength = USER_PASSWORD_LENGTH;
+  readonly createMessages: Record<UserCreateState, string> = {
+    [UserCreateState.Idle]: 'Create an enabled user. Email and password are sent unchanged.',
+    [UserCreateState.Submitting]: 'Creating user…',
+    [UserCreateState.Created]: 'User created.',
+    [UserCreateState.InvalidRequest]: `The creation request is invalid. Enter a nonempty email and a password of ${USER_PASSWORD_LENGTH.minimum}–${USER_PASSWORD_LENGTH.maximum} Unicode code points.`,
+    [UserCreateState.Unauthorized]: SESSION_UNUSABLE_MESSAGE,
+    [UserCreateState.Forbidden]: ADMINISTRATOR_REQUIRED_MESSAGE,
+    [UserCreateState.EmailConflict]: 'That email already exists. Use a different email.',
+    [UserCreateState.Unavailable]: 'The user creation service is unavailable.',
+    [UserCreateState.InvalidResponse]: 'The backend returned an invalid creation response.',
+  };
+  private createRequest?: Subscription;
   private readonly usersClient = inject(UsersClient);
   private profileRequest?: Subscription;
   private detailRequest?: Subscription;
@@ -130,6 +149,7 @@ export class App {
       this.usersRequest?.unsubscribe();
       this.profileRequest?.unsubscribe();
       this.detailRequest?.unsubscribe();
+      this.createRequest?.unsubscribe();
     });
   }
 
@@ -202,6 +222,71 @@ export class App {
     this.profileState.set(UserReadState.Idle);
     this.clearUsers();
     this.clearDetail();
+    this.createRequest?.unsubscribe();
+    this.createdUser.set(null);
+    this.createState.set(UserCreateState.Idle);
+  }
+
+  createUser(
+    event: Event,
+    email: HTMLInputElement,
+    password: HTMLInputElement,
+    admin: HTMLInputElement,
+  ): void {
+    event.preventDefault();
+    const request = { email: email.value, password: password.value, admin: admin.checked };
+    this.createRequest?.unsubscribe();
+    this.createdUser.set(null);
+    this.createState.set(UserCreateState.Idle);
+    const backend = this.selection.selected();
+    const bearer = this.session.tokenFor(backend.id);
+    if (bearer === null || !this.administrator()) return;
+    if (!isCreateUserRequest(request)) {
+      this.createState.set(UserCreateState.InvalidRequest);
+      return;
+    }
+    const reloadOffset = this.usersState() === UserReadState.Loaded ? this.users()!.offset : null;
+    this.createState.set(UserCreateState.Submitting);
+    this.createRequest = this.usersClient
+      .create(backend.proxyBaseUrl, bearer, request)
+      .pipe(
+        finalize(() => {
+          password.value = '';
+        }),
+      )
+      .subscribe({
+        next: (user) => {
+          password.value = '';
+          email.value = '';
+          admin.checked = false;
+          this.createdUser.set(user);
+          this.createState.set(UserCreateState.Created);
+          if (reloadOffset !== null) this.loadUsers(reloadOffset);
+        },
+        error: (error: unknown) => {
+          password.value = '';
+          let state = UserCreateState.Unavailable;
+          if (error instanceof InvalidUsersResponseError) state = UserCreateState.InvalidResponse;
+          else if (error instanceof HttpErrorResponse) {
+            switch (error.status) {
+              case HttpStatusCode.BadRequest:
+                state = UserCreateState.InvalidRequest;
+                break;
+              case HttpStatusCode.Unauthorized:
+                this.clearSession();
+                state = UserCreateState.Unauthorized;
+                break;
+              case HttpStatusCode.Forbidden:
+                state = UserCreateState.Forbidden;
+                break;
+              case HttpStatusCode.Conflict:
+                state = UserCreateState.EmailConflict;
+                break;
+            }
+          }
+          this.createState.set(state);
+        },
+      });
   }
 
   loadProfile(): void {

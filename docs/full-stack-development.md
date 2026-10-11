@@ -120,9 +120,10 @@ shows both identities as “Default demo values”, with a development warning a
 account-mutation caveat. Missing/invalid optional configuration hides the values
 without affecting Health, login or backend selection. No auto-login or fill
 buttons are added. Tokens remain in memory only. The browser can load its current
-profile and administrator collection/detail
-through read-only protected proxies. Identity provisioning uses backend ports
-directly; read verification covers both direct endpoints and client proxies.
+profile and administrator collection/detail, and create users through protected
+proxies. Identity provisioning uses backend ports directly; read verification
+covers direct endpoints and client proxies. Creation forwarding checks use an
+existing demo email for 409 and a regular bearer for 403, without adding accounts.
 
 ## Ports and proxy routes
 
@@ -139,8 +140,9 @@ are loopback-only; databases are not published by the client.
 
 The client exposes `/backends/java/health` and `/backends/dotnet/health` on its own
 origin, plus the exact `/backends/java/api/auth/login` and
-`/backends/dotnet/api/auth/login` routes, and read-only `/backends/java/api/users`
-and `/backends/dotnet/api/users` collection routes. WEB-003B adds read-only
+`/backends/dotnet/api/auth/login` routes. The exact `/backends/java/api/users`
+and `/backends/dotnet/api/users` collection routes allow GET and POST (WEB-003C).
+WEB-003B adds read-only
 `/backends/{backend}/api/auth/me` and `/backends/{backend}/api/users/{id}` routes.
 The detail proxy preserves the encoded opaque ID as one segment, refuses extra
 path segments, blocks redirects and refuses mutation methods. Login and user
@@ -186,7 +188,8 @@ collection and detail requests and discard all protected data. Switching or
 signing in again starts at
 offset 0. Authentication stays exclusively in the existing memory-only,
 backend-bound AuthSession. Tokens never enter storage, cookies or URLs.
-User creation/editing, search, filtering and custom sorting remain unimplemented.
+User updating/editing, search, filtering and custom sorting remain unimplemented.
+Creation is documented in WEB-003C below.
 Profile/detail reads are documented below; historical WEB-003A scope was listing only.
 
 Angular HTTP/component tests verify both backend flows, pagination, errors and
@@ -226,8 +229,9 @@ JSON (normal charset parameters accepted) and contractual no-store. Invalid
 responses never populate partial data. Bearers are explicit request headers,
 never stored, logged, parsed or placed in a URL. Switching backends, Clear session,
 replacement login and destruction cancel pending requests; old responses cannot
-populate the new selection. User creation/editing and password management remain
-outside scope; no router, interceptor, schema library or new dependency is added.
+populate the new selection. User updating/editing and password management remain
+outside scope; creation is documented below. No router, interceptor, schema
+library or new dependency is added.
 
 Angular HTTP/component tests cover both backends, response validation, admin UI,
 401/403/404, cancellation and WEB-003A regression. `demo-check` additionally verifies
@@ -235,6 +239,66 @@ administrator and regular profiles, list/detail, regular-user 403, invalid-beare
 401 and unknown-user 404 directly and through both client proxies. These new checks
 are read-only; existing demo provisioning semantics are unchanged. Component tests
 verify rendered interaction; real HTTP checks do not claim browser automation.
+
+## Administrator user creation (WEB-003C)
+
+A loaded `admin=true` profile shows **Create user** for either backend. It sends
+`POST /api/users` with the explicit bearer and exactly `email`, `password`, `admin`.
+Administrator is a checkbox defaulting to false; enabled is chosen by the server.
+The email input preserves the entered text without trimming, normalization,
+case folding or syntax validation. Password accepts 12–256 Unicode code points,
+including supplementary characters and whitespace, without trimming/composition.
+Local invalid input is not sent and can be corrected in place.
+
+While submitting, the form is busy and its submit button disabled. The password
+is read directly from the input, never kept in a signal or persisted, never logged
+or shown, and cleared after success, HTTP error or cancellation. HTTP errors keep
+email/admin available for retry; success also resets email and admin. Only the
+public created User is retained in memory.
+
+Success requires HTTP 201, JSON and no-store plus the exact closed User shape:
+nonempty ID/email, Boolean enabled/admin, enabled=true, and email/admin matching
+the request exactly. A 200 or malformed 201 (including an Angular JSON parse
+error) is an invalid response. Expected errors are validated as closed JSON,
+no-store and the exact code before applying UI semantics:
+
+| Status | Code | Client behavior |
+| --- | --- | --- |
+| 400 | `invalid_request` | Invalid-request message; session retained. |
+| 401 | `unauthorized` | Requires `WWW-Authenticate: Bearer`; discards session and all protected data. |
+| 403 | `forbidden` | Requires no challenge header; retains profile/session and reports administrator access required. |
+| 409 | `email_conflict` | Duplicate-email message; retains session, collection and detail for correction/retry. |
+
+Non-contractual representations of these errors are invalid responses, rather
+than functional failures. Network/5xx or unexpected statuses are unavailable.
+These failures retain authentication unless a validated 401 proves it unusable.
+Backend authorization remains authoritative despite the profile's admin flag.
+
+There is no optimistic insertion: IDs and ID ascending order belong to the
+server. A valid 201 reloads an already loaded collection at the same offset,
+obtaining its new window/total/order. It does not load a previously unloaded
+collection or guess where the new ID belongs.
+
+Backend changes, Clear session, replacement login, profile reload, destruction
+and replacement creation cancel observations and discard stale creation results.
+Cancellation aborts transport when possible and prevents old responses updating
+a new session/backend; it **does not roll back a POST already processed by the
+server**. No automatic retry is added.
+
+For protected users, Nginx allows POST only on the two exact collection routes.
+`/api/auth/me` and
+`/api/users/{id}` stay GET-only; POST on detail/profile and all PATCH/DELETE remain
+blocked. Common bearer/body/header forwarding, no buffering, redirect rejection
+and backend isolation are preserved.
+
+Angular tests cover creation, strict success/error validation, Unicode boundaries,
+password cleanup, cancellation and list refresh. Runtime mocks exercise
+201/400/401/403/409 through both proxies and coherent subsequent reads. Real
+`demo-check` verifies existing-email 409 and regular-user 403 through Java and .NET
+proxies without creating accounts or resetting volumes. Real 201 is not exercised
+by this persistent demo; backend conformance and client unit/runtime checks cover
+it separately. User updating (`PATCH`), enable/disable, promotion/demotion,
+password changes, DELETE and roles/permissions UI remain unimplemented.
 
 ## Stop
 
@@ -263,7 +327,10 @@ representation will fail; the client does not adapt that response.
 It also verifies administrator and regular-user login plus `/api/auth/me` on
 both direct backends, read-only profile/list/detail and 401/403/404 through both
 client proxies, regular-user admin denial, and each identity's successful
-and incorrect-password login through both client proxies. Response structures,
+and incorrect-password login through both client proxies. WEB-003C also checks
+POST forwarding with administrator existing-email 409 and regular-user 403;
+these checks neither create accounts nor alter persistent identities. Response
+structures,
 status codes and contractual no-store/challenge headers are checked. The client
 runtime resource must exactly match the four effective shared values. Angular
 component tests prove those resource values are displayed, completing the path

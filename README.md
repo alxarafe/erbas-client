@@ -7,9 +7,9 @@
 [![Angular client CI](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alxarafe/erbas-client/actions/workflows/ci.yml)
 
 The shared Angular client demonstrates **one executable contract, multiple
-interchangeable implementations**. WEB-003B adds current-user profile and
-administrator user detail to backend selection, public Health, AUTH-001 login and USERS-001 / COLLECTIONS-001 listing
-and pagination from published erbas-contract v0.4.0.
+interchangeable implementations**. WEB-003C adds administrator user creation to
+backend selection, public Health, AUTH-001 login, current-user profile and
+USERS-001 list/detail with COLLECTIONS-001 pagination from published v0.4.0.
 It uses standalone components, strict TypeScript, HttpClient and signals.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
@@ -26,7 +26,7 @@ Health indicates HTTP process liveness, not database readiness.
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.4.0 |
 | [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of v0.4.0 |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation of v0.4.0 plus platform modules |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health, AUTH-001 and USERS-001 profile/list/detail and COLLECTIONS-001 pagination from either backend |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular client consuming Health, AUTH-001 and USERS-001 profile/list/detail/create and COLLECTIONS-001 pagination from either backend |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
 Java and .NET badges report each backend's authoritative `./bin/check`, including
@@ -66,8 +66,8 @@ The host needs neither Node.js nor Angular CLI. Run from this checkout:
 ```
 
 `bin/check` runs shell syntax and Compose validation, all Angular tests, the
-production build, and runtime Health/login/users proxy smoke tests against two isolated
-mock servers.
+production build, and runtime Health/login/profile/list/detail/create proxy smoke
+tests against two isolated mock servers.
 It publishes no validation ports and removes its temporary containers, network
 and image tags. Docker build caches and downloaded base images remain reusable.
 The suite does not require either actual backend to be running.
@@ -132,9 +132,9 @@ ERBAS_JAVA_UPSTREAM=my-java-app-1:8080 ./bin/up
 Equivalent settings are `ERBAS_DOTNET_CONTAINER` and `ERBAS_DOTNET_UPSTREAM`.
 Upstreams must be trusted Docker DNS names (with port), reachable on the attached
 networks. These are deployment configuration, not user-provided proxy destinations.
-Only Health, `/api/auth/login`, `/api/auth/me` and read-only users collection/detail
-paths are proxied;
-other `/backends/` paths return 404. Login preserves backend HTTP statuses, JSON
+Only Health, `/api/auth/login`, `/api/auth/me` and users collection/detail paths
+are proxied. The exact users collection routes allow GET and POST; profile/detail
+remain GET-only, and PATCH/DELETE are blocked. All other `/backends/` paths return 404. Login preserves backend HTTP statuses, JSON
 bodies, `Cache-Control: no-store` and `WWW-Authenticate: Bearer`.
 Protected proxies forward the bearer, pagination query or encoded opaque ID,
 preserve contractual errors and headers, block redirects, and disable buffering,
@@ -149,8 +149,8 @@ processes. A deployment-specific network configuration would be needed for those
 - `app/src/app/health-client.ts`: destination-neutral HTTP client and contract validation.
 - `app/src/app/auth-client.ts`: destination-neutral AUTH-001 login and response validation.
 - `app/src/app/auth-session.ts`: one in-memory session tied to its issuing backend.
-- `app/src/app/users-client.ts`: destination-neutral profile/list/detail with one closed User validator.
-- `app/src/app/app.*`: Health/login/profile/users presentation, pagination and cancellation.
+- `app/src/app/users-client.ts`: destination-neutral profile/list/detail/create with one closed User validator.
+- `app/src/app/app.*`: Health/login/profile/users presentation, creation, pagination and cancellation.
 - `Dockerfile`, `compose.yaml`, `docker/`: build, runtime proxy and isolated smoke fixtures.
 - `bin/`: lifecycle and validation workflows; `.github/workflows/ci.yml`: calls `bin/check`.
 
@@ -190,14 +190,20 @@ detail 404 reports user not found without clearing authentication. See
 [profile/detail](docs/full-stack-development.md#current-profile-and-user-detail-web-003b)
 for response validation and error states.
 
-User creation and editing remain unimplemented. There is no
+Administrators can create enabled users through `POST /api/users`. Email is sent
+unchanged; passwords use 12–256 Unicode code points, are never persisted, and are
+cleared after HTTP completion or cancellation. A valid 201 shows the public User
+and refreshes an already loaded collection at its existing offset. Cancellation
+cannot guarantee server rollback. See [user creation](docs/full-stack-development.md#administrator-user-creation-web-003c)
+for 400/401/403/409 behavior and verification scope. PATCH/user editing remains
+unimplemented. There is no
 refresh, bearer interceptor, registration, server logout, roles or permissions UI. ERP navigation,
 CRUD, Catalog, AiAgent, SSR, PWA and production deployment remain outside scope.
 Health stays public and independent of authentication. The client does not adapt
 nonconforming responses. Health redirects are blocked by Nginx; login statuses
 and bodies pass through without error interception. Proxy timeouts are bounded.
 
-`bin/check` verifies runtime Health/login/users proxies against isolated mocks;
+`bin/check` verifies runtime Health/login/profile/list/detail/create proxies against isolated mocks;
 `bin/demo-check` verifies both real development backends through the client.
 The demo reads public administrator and regular-user defaults from
 `erbas-contract/demo/defaults.env`, with explicit `ERBAS_DEMO_*` overrides.

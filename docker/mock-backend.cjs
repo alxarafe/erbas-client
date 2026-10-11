@@ -1,9 +1,9 @@
 const http = require('node:http');
-const READ_STATUS = { ok: 200, invalidRequest: 400, unauthorized: 401, forbidden: 403, notFound: 404, redirect: 302 };
+const READ_STATUS = { ok: 200, created: 201, conflict: 409, invalidRequest: 400, unauthorized: 401, forbidden: 403, notFound: 404, redirect: 302 };
 const USER_HTTP = { accept: 'application/json', contentType: 'Content-Type', cacheControl: 'Cache-Control', noStore: 'no-store', challenge: 'WWW-Authenticate', bearer: 'Bearer' };
 const ADMIN_BEARER = 'Bearer fictitious-mock-token';
 const REGULAR_BEARER = 'Bearer fictitious-regular-token';
-const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', notFound: 'user_not_found' };
+const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', notFound: 'user_not_found', conflict: 'email_conflict' };
 const USERS_ENDPOINT = '/api/users';
 const REDIRECT_OFFSET = 302; // Deliberate collection redirect fixture.
 const CURRENT_USER_ENDPOINT = '/api/auth/me';
@@ -12,6 +12,8 @@ const MOCK_USERS = [
   { id: 'opaque-b', email: 'regular@example.test', enabled: true, admin: false },
   { id: 'opaque /?#% user', email: 'encoded@example.test', enabled: true, admin: false },
 ];
+const PASSWORD_LENGTH = { minimum: 12, maximum: 256 };
+const CREATE_FIELDS = 'admin,email,password';
 let checks = 0;
 http.createServer((req, res) => {
   if (req.url.startsWith(USERS_ENDPOINT)) {
@@ -20,7 +22,7 @@ http.createServer((req, res) => {
       res.writeHead(status, { [USER_HTTP.contentType]: USER_HTTP.accept, [USER_HTTP.cacheControl]: USER_HTTP.noStore, ...headers });
       res.end(JSON.stringify(body));
     };
-    if (req.method !== 'GET' || req.headers.accept !== USER_HTTP.accept) {
+    if (!['GET', 'POST'].includes(req.method) || (req.method === 'POST' && url.pathname !== USERS_ENDPOINT) || req.headers.accept !== USER_HTTP.accept) {
       reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return;
     }
     const bearer = req.headers.authorization;
@@ -28,6 +30,28 @@ http.createServer((req, res) => {
       reply(READ_STATUS.unauthorized, { code: USER_ERRORS.unauthorized }, { [USER_HTTP.challenge]: USER_HTTP.bearer }); return;
     }
     if (bearer === REGULAR_BEARER) { reply(READ_STATUS.forbidden, { code: USER_ERRORS.forbidden }); return; }
+    if (req.method === 'POST') {
+      let data = '';
+      req.on('data', chunk => { data += chunk; });
+      req.on('end', () => {
+        let body;
+        try { body = JSON.parse(data); } catch { reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return; }
+        if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== USER_HTTP.accept ||
+            !body || Array.isArray(body) || Object.keys(body).sort().join(',') !== CREATE_FIELDS ||
+            typeof body.email !== 'string' || body.email.length === 0 || typeof body.password !== 'string' ||
+            Array.from(body.password).length < PASSWORD_LENGTH.minimum || Array.from(body.password).length > PASSWORD_LENGTH.maximum ||
+            typeof body.admin !== 'boolean') {
+          reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return;
+        }
+        if (MOCK_USERS.some(user => user.email === body.email)) {
+          reply(READ_STATUS.conflict, { code: USER_ERRORS.conflict }); return;
+        }
+        const user = { id: `opaque-created-${MOCK_USERS.length}`, email: body.email, enabled: true, admin: body.admin };
+        MOCK_USERS.push(user); // No password is retained in mock state.
+        reply(READ_STATUS.created, user);
+      });
+      return;
+    }
     if (url.pathname !== USERS_ENDPOINT) {
       if (!url.pathname.startsWith(USERS_ENDPOINT + '/')) { reply(READ_STATUS.notFound, { code: USER_ERRORS.notFound }); return; }
       const id = decodeURIComponent(url.pathname.slice(USERS_ENDPOINT.length + 1));
@@ -41,7 +65,7 @@ http.createServer((req, res) => {
       reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return;
     }
     if (offset === REDIRECT_OFFSET) { res.writeHead(READ_STATUS.redirect, { Location: 'http://unreachable.invalid/users' }).end(); return; }
-    const users = MOCK_USERS;
+    const users = [...MOCK_USERS].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     reply(READ_STATUS.ok, { items: users.slice(offset, offset + limit), offset, limit, total: users.length, order: [{ field: 'id', direction: 'asc' }] });
     return;
   }
