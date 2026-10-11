@@ -5,8 +5,13 @@ shared AUTH-001 login, backend-bound in-memory session and real demo verificatio
 WEB-003A adds administrator-only USERS-001 / COLLECTIONS-001 listing and pagination
 against published erbas-contract v0.4.0, with the same code for both backends.
 401 clears the session; 403 preserves it. Backend switching and Clear session
-cancel protected requests and discard user data. No user creation, editing or
-detail view is implemented. These slices are completed. Do not create
+cancel protected requests and discard user data. WEB-003B adds the authenticated
+`/api/auth/me` profile and administrator
+`GET /api/users/{id}` detail view, sharing one closed User validator. The loaded
+profile informs administrator UI visibility; backend authorization remains
+explicitly authoritative. Profile/detail failures retain authentication except
+401, which discards all protected data. No user creation or editing is
+implemented. These slices are completed. Do not create
 placeholder applications or containers. The client owns
 `ERBAS_CLIENT_PORT` mapping: default loopback host port 48082 to container port 80.
 Follow the common convention in `erbas-contract/docs/development-ports.md`.

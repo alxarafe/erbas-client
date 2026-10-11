@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { App } from './app';
+import { CURRENT_USER_ENDPOINT, USER_HTTP } from './users-client';
 import { AuthSession } from './auth-session';
 
 describe('Application login', () => {
@@ -34,10 +35,21 @@ describe('Application login', () => {
     health(backend);
     await fixture.whenStable();
   };
+  const profile = (backend = 'java') =>
+    http.expectOne(`/backends/${backend}${CURRENT_USER_ENDPOINT}`).flush(
+      { id: 'opaque-profile', email: 'User@example.test', enabled: true, admin: true },
+      {
+        headers: {
+          [USER_HTTP.contentType]: USER_HTTP.json,
+          [USER_HTTP.cacheControl]: USER_HTTP.noStore,
+        },
+      },
+    );
   const succeed = (backend = 'java') => {
     http
       .expectOne(`/backends/${backend}/api/auth/login`)
       .flush({ accessToken: token }, { headers: { 'Content-Type': 'application/json' } });
+    profile(backend);
   };
 
   beforeEach(async () => {
@@ -65,6 +77,7 @@ describe('Application login', () => {
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ email: 'User@example.test', password: secret });
     request.flush({ accessToken: token }, { headers: { 'Content-Type': 'application/json' } });
+    profile();
     await fixture.whenStable();
     expect(session.tokenFor('java')).toBe(token);
     expect(session.tokenFor('dotnet')).toBeNull();

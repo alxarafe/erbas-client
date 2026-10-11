@@ -119,9 +119,10 @@ empty/CR/LF values. The resource uses no-store. Angular reads it optionally and
 shows both identities as “Default demo values”, with a development warning and
 account-mutation caveat. Missing/invalid optional configuration hides the values
 without affecting Health, login or backend selection. No auto-login or fill
-buttons are added. Tokens remain in memory only. The browser can list users
-through the exact `/api/users` proxy; `/api/auth/me` remains outside the client
-slice. Identity provisioning/verifications access backend ports directly.
+buttons are added. Tokens remain in memory only. The browser can load its current
+profile and administrator collection/detail
+through read-only protected proxies. Identity provisioning uses backend ports
+directly; read verification covers both direct endpoints and client proxies.
 
 ## Ports and proxy routes
 
@@ -139,7 +140,11 @@ are loopback-only; databases are not published by the client.
 The client exposes `/backends/java/health` and `/backends/dotnet/health` on its own
 origin, plus the exact `/backends/java/api/auth/login` and
 `/backends/dotnet/api/auth/login` routes, and read-only `/backends/java/api/users`
-and `/backends/dotnet/api/users` collection routes. Login and listing are same-origin: no CORS changes or
+and `/backends/dotnet/api/users` collection routes. WEB-003B adds read-only
+`/backends/{backend}/api/auth/me` and `/backends/{backend}/api/users/{id}` routes.
+The detail proxy preserves the encoded opaque ID as one segment, refuses extra
+path segments, blocks redirects and refuses mutation methods. Login and user
+reads are same-origin: no CORS changes or
 direct browser login to backend host ports are needed. It connects to backend
 Docker networks using existing `bin/up` discovery,
 with default container names `erbas-app-1` and `alxarafe-dotnet-app-1`. Custom
@@ -150,10 +155,12 @@ These variables are passed through to the existing owner workflows.
 
 ## Authenticated user list (WEB-003A)
 
-Choose either backend, sign in, then select **Load users**. The same Angular
+Choose either backend, sign in, and load the current profile. Administrators can
+then select **Load users**. The same Angular
 UsersClient consumes the published v0.4.0 USERS-001 / COLLECTIONS-001 endpoint
 from Java or .NET. Access is administrator-only, enforced by the shared contract
-and backend; the client does not parse the opaque bearer or infer privileges.
+and backend. The client does not parse the opaque bearer; the loaded profile
+informs UI visibility, while backend authorization remains authoritative.
 
 The table shows ID, email, enabled and administrator flags. Total, offset and
 limit come from the response. Previous/Next use a fixed limit of 50, starting
@@ -174,18 +181,60 @@ administrator requirement. 400 reports an invalid request; network/5xx failures
 report service unavailability; malformed success reports an invalid response.
 No backend payloads, internal errors or tokens are displayed.
 
-Backend switching, Clear session and a replacement login cancel pending users
-requests and discard the collection. Switching or signing in again starts at
+Backend switching, Clear session and a replacement login cancel pending profile,
+collection and detail requests and discard all protected data. Switching or
+signing in again starts at
 offset 0. Authentication stays exclusively in the existing memory-only,
 backend-bound AuthSession. Tokens never enter storage, cookies or URLs.
-User creation/editing/details, `/api/auth/me`, search, filtering and custom
-sorting are outside WEB-003A.
+User creation/editing, search, filtering and custom sorting remain unimplemented.
+Profile/detail reads are documented below; historical WEB-003A scope was listing only.
 
 Angular HTTP/component tests verify both backend flows, pagination, errors and
 cancellation. Isolated Docker smoke tests exercise both users proxies, including
 bearer/query forwarding, no-store, 400/401/403, redirect blocking and refusal of
-mutations/detail routes. `demo-check` remains the existing real Health/login/
-identity regression; it does not exercise this browser listing interaction.
+mutations. `demo-check` verifies real profile/list/detail HTTP behavior through
+both proxies; it does not drive browser interaction.
+
+## Current profile and user detail (WEB-003B)
+
+Successful login establishes a backend-bound memory-only bearer and immediately
+requests `GET /api/auth/me`. The compact profile shows email, enabled and admin.
+Login and profile state remain distinct. Profile loading, unavailability and
+invalid response are explicit; network/5xx/malformed-success failures retain the
+bearer and offer **Reload profile**. Unexpected `/me` 403/404 is unavailability,
+not a new contractual authorization result. A 401 clears the session and all
+protected data and asks the user to sign in again.
+
+Only a loaded `admin=true` profile offers collection and detail controls.
+`admin=false` keeps authentication and explains the administrator requirement.
+This is UI guidance, not security: backend 403 handling remains mandatory when
+privileges change after the profile was loaded. No privilege polling is added.
+
+Each collection row offers **View**, which fetches `GET /api/users/{id}` rather
+than reusing the row as detail. IDs remain opaque and are encoded as one path
+segment. The detail panel identifies the selection and shows ID, email, enabled
+and admin. A new selection cancels the prior request and clears stale detail.
+403 preserves the session and reports administrator access required; 404
+preserves it and reports user not found; network/5xx and malformed successes
+report unavailable and invalid response respectively. 401 clears profile,
+collection, detail and bearer. Reloading/paging the collection clears its old
+selection; reloading profile clears protected data before resolving privileges.
+
+One User validator serves profile, list items and detail: exact four fields,
+nonempty ID/email strings and Boolean flags. Individual reads require HTTP 200,
+JSON (normal charset parameters accepted) and contractual no-store. Invalid
+responses never populate partial data. Bearers are explicit request headers,
+never stored, logged, parsed or placed in a URL. Switching backends, Clear session,
+replacement login and destruction cancel pending requests; old responses cannot
+populate the new selection. User creation/editing and password management remain
+outside scope; no router, interceptor, schema library or new dependency is added.
+
+Angular HTTP/component tests cover both backends, response validation, admin UI,
+401/403/404, cancellation and WEB-003A regression. `demo-check` additionally verifies
+administrator and regular profiles, list/detail, regular-user 403, invalid-bearer
+401 and unknown-user 404 directly and through both client proxies. These new checks
+are read-only; existing demo provisioning semantics are unchanged. Component tests
+verify rendered interaction; real HTTP checks do not claim browser automation.
 
 ## Stop
 
@@ -212,7 +261,8 @@ nonzero exit code. A backend revision with another Health
 representation will fail; the client does not adapt that response.
 
 It also verifies administrator and regular-user login plus `/api/auth/me` on
-both direct backends, regular-user admin denial, and each identity's successful
+both direct backends, read-only profile/list/detail and 401/403/404 through both
+client proxies, regular-user admin denial, and each identity's successful
 and incorrect-password login through both client proxies. Response structures,
 status codes and contractual no-store/challenge headers are checked. The client
 runtime resource must exactly match the four effective shared values. Angular

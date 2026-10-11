@@ -1,4 +1,6 @@
 """Small shared-demo defaults resolver and real HTTP provisioning/checks."""
+from http import HTTPStatus
+from urllib.parse import quote
 import json
 import os
 from pathlib import Path
@@ -10,6 +12,15 @@ import urllib.request
 NAMES = ("ERBAS_DEMO_ADMIN_EMAIL", "ERBAS_DEMO_ADMIN_PASSWORD",
          "ERBAS_DEMO_USER_EMAIL", "ERBAS_DEMO_USER_PASSWORD")
 
+
+CURRENT_USER_ENDPOINT = "/api/auth/me"
+USERS_ENDPOINT = "/api/users"
+USER_FIELDS = frozenset(("id", "email", "enabled", "admin"))
+USERS_PAGE_SIZE = 50
+UNKNOWN_USER_ID = "web-003b-unknown-user"
+INVALID_BEARER = "web-003b-invalid-bearer"
+PROTECTED_ERRORS = {HTTPStatus.UNAUTHORIZED: "unauthorized", HTTPStatus.FORBIDDEN: "forbidden",
+                    HTTPStatus.NOT_FOUND: "user_not_found"}
 
 class DemoError(Exception):
     pass
@@ -154,6 +165,56 @@ def verify_backend(label, base, values, provision=False):
     print(f"OK: {label} administrator and regular-user login/me; regular-user admin denial.")
 
 
+def user_shape(body):
+    return (isinstance(body, dict) and set(body) == USER_FIELDS
+            and isinstance(body["id"], str) and bool(body["id"])
+            and isinstance(body["email"], str) and bool(body["email"])
+            and type(body["enabled"]) is bool and type(body["admin"]) is bool)
+
+
+def verify_reads(label, base, values):
+    """Read-only WEB-003B checks; tokens and response details never reach diagnostics."""
+    tokens = []
+    for admin, (email_key, password_key) in zip((True, False), (NAMES[:2], NAMES[2:])):
+        token = login(base, values[email_key], values[password_key])
+        tokens.append(token)
+        status, headers, profile = request(base + CURRENT_USER_ENDPOINT, token=token)
+        require(status == HTTPStatus.OK and user_shape(profile) and profile["email"] == values[email_key]
+                and profile["enabled"] is True and profile["admin"] is admin,
+                f"{label}: current User shape or identity failed.")
+        no_store(headers)
+    admin_token, regular_token = tokens
+    status, headers, collection = request(base + USERS_ENDPOINT + f"?offset=0&limit={USERS_PAGE_SIZE}", token=admin_token)
+    no_store(headers)
+    require(status == HTTPStatus.OK and isinstance(collection, dict)
+            and set(collection) == {"items", "offset", "limit", "total", "order"}
+            and collection["offset"] == 0 and collection["limit"] == USERS_PAGE_SIZE
+            and type(collection["total"]) is int and collection["total"] > 0
+            and collection["order"] == [{"field": "id", "direction": "asc"}]
+            and isinstance(collection["items"], list) and bool(collection["items"])
+            and all(user_shape(user) for user in collection["items"]),
+            f"{label}: administrator collection failed.")
+    selected = collection["items"][0]
+    path = USERS_ENDPOINT + "/" + quote(selected["id"], safe="")
+    status, headers, user = request(base + path, token=admin_token)
+    no_store(headers)
+    require(status == HTTPStatus.OK and user_shape(user) and user == selected,
+            f"{label}: detail does not match listed User.")
+    cases = ((CURRENT_USER_ENDPOINT, INVALID_BEARER, HTTPStatus.UNAUTHORIZED),
+             (path, INVALID_BEARER, HTTPStatus.UNAUTHORIZED),
+             (USERS_ENDPOINT, regular_token, HTTPStatus.FORBIDDEN),
+             (path, regular_token, HTTPStatus.FORBIDDEN),
+             (USERS_ENDPOINT + "/" + UNKNOWN_USER_ID, admin_token, HTTPStatus.NOT_FOUND))
+    for endpoint, token, expected in cases:
+        status, headers, body = request(base + endpoint, token=token)
+        no_store(headers)
+        require(status == expected and body == {"code": PROTECTED_ERRORS[expected]},
+                f"{label}: protected read error failed.")
+        require(headers.get("WWW-Authenticate") == ("Bearer" if expected == HTTPStatus.UNAUTHORIZED else None),
+                f"{label}: unexpected protected read challenge.")
+    print(f"OK: {label} profile/list/detail, regular-user 403, invalid-bearer 401 and unknown-user 404 (read-only).")
+
+
 def check(java, dotnet, client, values):
     for label, url in (("Java direct", java + "/health"), (".NET direct", dotnet + "/health"),
                        ("Client → Java", client + "/backends/java/health"),
@@ -169,7 +230,9 @@ def check(java, dotnet, client, values):
     print("OK: Client Angular runtime and public demo values match effective shared defaults.")
     for label, base, backend in (("Java", java, "java"), (".NET", dotnet, "dotnet")):
         verify_backend(label, base, values)
+        verify_reads(label + " direct", base, values)
         proxy = client + "/backends/" + backend
+        verify_reads("Client → " + label, proxy, values)
         for email_key, password_key in (NAMES[:2], NAMES[2:]):
             login(proxy, values[email_key], values[password_key])
             status, headers, body = request(proxy + "/api/auth/login", {
@@ -177,7 +240,7 @@ def check(java, dotnet, client, values):
             require(status == 401 and body == {"code": "invalid_credentials"}
                     and headers.get("WWW-Authenticate") == "Bearer", f"{label}: incorrect-password proxy check failed.")
         print(f"OK: Client → {label} administrator/regular login and incorrect-password behavior.")
-    print("DEMO CHECK PASS: both identities, direct/proxied Health, login proxies and client runtime defaults.")
+    print("DEMO CHECK PASS: both identities, direct/proxied Health and user reads, login proxies and client runtime defaults.")
 
 
 def main():
