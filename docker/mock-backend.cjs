@@ -1,9 +1,10 @@
+const PATCH_METHOD = 'PATCH';
 const http = require('node:http');
 const READ_STATUS = { ok: 200, created: 201, conflict: 409, invalidRequest: 400, unauthorized: 401, forbidden: 403, notFound: 404, redirect: 302 };
 const USER_HTTP = { accept: 'application/json', contentType: 'Content-Type', cacheControl: 'Cache-Control', noStore: 'no-store', challenge: 'WWW-Authenticate', bearer: 'Bearer' };
 const ADMIN_BEARER = 'Bearer fictitious-mock-token';
 const REGULAR_BEARER = 'Bearer fictitious-regular-token';
-const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', notFound: 'user_not_found', conflict: 'email_conflict' };
+const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', notFound: 'user_not_found', conflict: 'email_conflict', lastAdmin: 'last_admin' };
 const USERS_ENDPOINT = '/api/users';
 const REDIRECT_OFFSET = 302; // Deliberate collection redirect fixture.
 const CURRENT_USER_ENDPOINT = '/api/auth/me';
@@ -13,6 +14,7 @@ const MOCK_USERS = [
   { id: 'opaque /?#% user', email: 'encoded@example.test', enabled: true, admin: false },
 ];
 const PASSWORD_LENGTH = { minimum: 12, maximum: 256 };
+const UPDATE_FIELDS = ['enabled', 'admin'];
 const CREATE_FIELDS = 'admin,email,password';
 let checks = 0;
 http.createServer((req, res) => {
@@ -22,14 +24,40 @@ http.createServer((req, res) => {
       res.writeHead(status, { [USER_HTTP.contentType]: USER_HTTP.accept, [USER_HTTP.cacheControl]: USER_HTTP.noStore, ...headers });
       res.end(JSON.stringify(body));
     };
-    if (!['GET', 'POST'].includes(req.method) || (req.method === 'POST' && url.pathname !== USERS_ENDPOINT) || req.headers.accept !== USER_HTTP.accept) {
+    if (!['GET', 'POST', PATCH_METHOD].includes(req.method) || (req.method === PATCH_METHOD && url.pathname === USERS_ENDPOINT) || (req.method === 'POST' && url.pathname !== USERS_ENDPOINT) || req.headers.accept !== USER_HTTP.accept) {
       reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return;
     }
     const bearer = req.headers.authorization;
-    if (bearer !== ADMIN_BEARER && bearer !== REGULAR_BEARER) {
+    const actor = bearer === ADMIN_BEARER ? MOCK_USERS[0] : bearer === REGULAR_BEARER ? MOCK_USERS[1] : null;
+    if (!actor || !actor.enabled) {
       reply(READ_STATUS.unauthorized, { code: USER_ERRORS.unauthorized }, { [USER_HTTP.challenge]: USER_HTTP.bearer }); return;
     }
-    if (bearer === REGULAR_BEARER) { reply(READ_STATUS.forbidden, { code: USER_ERRORS.forbidden }); return; }
+    if (!actor.admin) { reply(READ_STATUS.forbidden, { code: USER_ERRORS.forbidden }); return; }
+    if (req.method === PATCH_METHOD) {
+      let data = '';
+      req.on('data', chunk => { data += chunk; });
+      req.on('end', () => {
+        let body;
+        try { body = JSON.parse(data); } catch { reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return; }
+        if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== USER_HTTP.accept ||
+            !body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length === 0 ||
+            !Object.keys(body).every(field => UPDATE_FIELDS.includes(field) && typeof body[field] === 'boolean')) {
+          reply(READ_STATUS.invalidRequest, { code: USER_ERRORS.invalidRequest }); return;
+        }
+        const id = decodeURIComponent(url.pathname.slice(USERS_ENDPOINT.length + 1));
+        const index = MOCK_USERS.findIndex(user => user.id === id);
+        if (index < 0) { reply(READ_STATUS.notFound, { code: USER_ERRORS.notFound }); return; }
+        const updated = { ...MOCK_USERS[index], ...body };
+        const enabledAdmins = MOCK_USERS.filter((user, position) => {
+          const candidate = position === index ? updated : user;
+          return candidate.enabled === true && candidate.admin === true;
+        }).length;
+        if (enabledAdmins === 0) { reply(READ_STATUS.conflict, { code: USER_ERRORS.lastAdmin }); return; }
+        MOCK_USERS[index] = updated;
+        reply(READ_STATUS.ok, updated);
+      });
+      return;
+    }
     if (req.method === 'POST') {
       let data = '';
       req.on('data', chunk => { data += chunk; });
@@ -73,9 +101,9 @@ http.createServer((req, res) => {
     const token = req.headers.authorization;
     const user = token === ADMIN_BEARER ? MOCK_USERS[0] :
       token === REGULAR_BEARER ? MOCK_USERS[1] : null;
-    res.writeHead(user ? READ_STATUS.ok : READ_STATUS.unauthorized, { [USER_HTTP.contentType]: USER_HTTP.accept, [USER_HTTP.cacheControl]: USER_HTTP.noStore,
-      ...(user ? {} : { [USER_HTTP.challenge]: USER_HTTP.bearer }) });
-    res.end(JSON.stringify(user ?? { code: USER_ERRORS.unauthorized }));
+    res.writeHead(user?.enabled ? READ_STATUS.ok : READ_STATUS.unauthorized, { [USER_HTTP.contentType]: USER_HTTP.accept, [USER_HTTP.cacheControl]: USER_HTTP.noStore,
+      ...(user?.enabled ? {} : { [USER_HTTP.challenge]: USER_HTTP.bearer }) });
+    res.end(JSON.stringify(user?.enabled ? user : { code: USER_ERRORS.unauthorized }));
     return;
   }
   if (req.url === '/api/auth/login' && req.method === 'POST') {

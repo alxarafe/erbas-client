@@ -39,4 +39,4 @@ docker run --detach --name "$run-client" --network "$run" --network-alias client
     -e ERBAS_DEMO_ADMIN_EMAIL=runtime-admin@example.test -e ERBAS_DEMO_ADMIN_PASSWORD='Runtime_admin_123=' \
     -e ERBAS_DEMO_USER_EMAIL=runtime-user@example.test -e ERBAS_DEMO_USER_PASSWORD='Runtime_user_123$' "$run" >/dev/null
 docker run --rm --network "$run" -v "$root/docker/demo-smoke.cjs:/smoke.cjs:ro" node:24-alpine node /smoke.cjs
-echo 'CHECK PASS: unit tests, production build, Docker runtime and both same-origin Health, login, profile, users/detail and user creation proxies.'
+echo 'CHECK PASS: unit tests, production build, Docker runtime and both same-origin Health, login, profile, users/detail and user creation/update proxies.'

@@ -69,7 +69,7 @@ server {
     location /backends/ {
         if ($user_detail_path = "") { return 404; }
         proxy_pass http://$user_detail_upstream$user_detail_path;
-        limit_except GET { deny all; }
+        limit_except GET PATCH { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location / { try_files $uri $uri/ /index.html; }

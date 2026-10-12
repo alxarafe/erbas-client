@@ -96,10 +96,11 @@ Both remain independently runnable. No additional seed subsystem or migration
 is introduced, and registration semantics are unchanged.
 
 After backend startup, administrator login and `/api/auth/me` must confirm the
-expected email, `enabled=true` and `admin=true`. The regular user is created
-through administrator-authorized `POST /api/users` with `admin=false`.
-A 201 response or 409 `email_conflict` is followed by regular-user login and
-`/api/auth/me` verification of the expected email, `enabled=true`, `admin=false`.
+expected email, `enabled=true` and `admin=true`. The regular demo identity must
+already exist. Startup verifies regular-user login and `/api/auth/me` with the
+expected email, `enabled=true`, `admin=false`, without creating accounts. The
+legacy explicit provisioning helper remains available separately; `demo-up`
+uses verification only so persistent data is not mutated by this workflow.
 The regular user must also receive contractual 403 `forbidden` with no-store
 from `GET /api/users`. No user is seeded directly or granted module permissions.
 .NET reader/creator accounts remain separate backend/module development fixtures;
@@ -120,8 +121,8 @@ shows both identities as “Default demo values”, with a development warning a
 account-mutation caveat. Missing/invalid optional configuration hides the values
 without affecting Health, login or backend selection. No auto-login or fill
 buttons are added. Tokens remain in memory only. The browser can load its current
-profile and administrator collection/detail, and create users through protected
-proxies. Identity provisioning uses backend ports directly; read verification
+profile and administrator collection/detail, and manage users through protected
+proxies. Identity verification uses backend ports directly; read verification
 covers direct endpoints and client proxies. Creation forwarding checks use an
 existing demo email for 409 and a regular bearer for 403, without adding accounts.
 
@@ -142,10 +143,11 @@ The client exposes `/backends/java/health` and `/backends/dotnet/health` on its 
 origin, plus the exact `/backends/java/api/auth/login` and
 `/backends/dotnet/api/auth/login` routes. The exact `/backends/java/api/users`
 and `/backends/dotnet/api/users` collection routes allow GET and POST (WEB-003C).
-WEB-003B adds read-only
-`/backends/{backend}/api/auth/me` and `/backends/{backend}/api/users/{id}` routes.
-The detail proxy preserves the encoded opaque ID as one segment, refuses extra
-path segments, blocks redirects and refuses mutation methods. Login and user
+The profile route `/backends/{backend}/api/auth/me` remains GET-only. Detail
+routes `/backends/java/api/users/{id}` and `/backends/dotnet/api/users/{id}` allow
+GET and PATCH only. POST/DELETE on detail, PATCH on collection/profile, and extra
+path segments remain blocked. The detail proxy preserves the encoded opaque ID
+as one segment and blocks redirects. Login and user
 reads are same-origin: no CORS changes or
 direct browser login to backend host ports are needed. It connects to backend
 Docker networks using existing `bin/up` discovery,
@@ -188,7 +190,7 @@ collection and detail requests and discard all protected data. Switching or
 signing in again starts at
 offset 0. Authentication stays exclusively in the existing memory-only,
 backend-bound AuthSession. Tokens never enter storage, cookies or URLs.
-User updating/editing, search, filtering and custom sorting remain unimplemented.
+Search, filtering and custom sorting remain unimplemented. Basic updates are documented below.
 Creation is documented in WEB-003C below.
 Profile/detail reads are documented below; historical WEB-003A scope was listing only.
 
@@ -229,8 +231,8 @@ JSON (normal charset parameters accepted) and contractual no-store. Invalid
 responses never populate partial data. Bearers are explicit request headers,
 never stored, logged, parsed or placed in a URL. Switching backends, Clear session,
 replacement login and destruction cancel pending requests; old responses cannot
-populate the new selection. User updating/editing and password management remain
-outside scope; creation is documented below. No router, interceptor, schema
+populate the new selection. Password management remains outside scope;
+creation and basic updates are documented below. No router, interceptor, schema
 library or new dependency is added.
 
 Angular HTTP/component tests cover both backends, response validation, admin UI,
@@ -286,9 +288,9 @@ a new session/backend; it **does not roll back a POST already processed by the
 server**. No automatic retry is added.
 
 For protected users, Nginx allows POST only on the two exact collection routes.
-`/api/auth/me` and
-`/api/users/{id}` stay GET-only; POST on detail/profile and all PATCH/DELETE remain
-blocked. Common bearer/body/header forwarding, no buffering, redirect rejection
+`/api/auth/me` stays GET-only. WEB-003D allows GET/PATCH on detail only;
+POST/DELETE on detail and PATCH/DELETE on collection/profile remain blocked.
+Common bearer/body/header forwarding, no buffering, redirect rejection
 and backend isolation are preserved.
 
 Angular tests cover creation, strict success/error validation, Unicode boundaries,
@@ -297,8 +299,106 @@ password cleanup, cancellation and list refresh. Runtime mocks exercise
 `demo-check` verifies existing-email 409 and regular-user 403 through Java and .NET
 proxies without creating accounts or resetting volumes. Real 201 is not exercised
 by this persistent demo; backend conformance and client unit/runtime checks cover
-it separately. User updating (`PATCH`), enable/disable, promotion/demotion,
-password changes, DELETE and roles/permissions UI remain unimplemented.
+it separately. Password changes, DELETE and roles/permissions UI remain
+unimplemented; basic enabled/admin updates are documented below.
+
+## Administrator user update (WEB-003D)
+
+This slice closes WEB-003 basic user administration against published contract
+v0.4.0, using the same Angular code and observable behavior for Java and .NET.
+An administrator loads the existing user detail, changes **Enabled** and/or
+**Administrator**, then submits **Update user**. ID/email remain informational;
+there are no email/password edit inputs or new screen/router.
+
+`UpdateUserRequest` has optional readonly boolean `enabled`/`admin` fields.
+Runtime validation accepts only a nonempty closed object with one or both
+fields. `UsersClient.update()` rejects empty IDs/invalid bodies before HTTP,
+encodes opaque IDs with `encodeURIComponent`, and sends PATCH with explicit
+JSON Accept/Content-Type and backend-bound Bearer authorization. The component
+compares checkboxes to the current detail and sends only differences. No changes
+means no request and a local `NoChanges` state, rather than a backend 400.
+
+A valid success is exactly 200, JSON, no-store and the existing closed User
+schema. Returned ID must equal the requested ID and every sent field must equal
+its requested value. Unsent fields are accepted from the server without guessed
+expectations. Other successful statuses, malformed bodies/headers and Angular
+JSON parse failures at 200 are `InvalidResponse`. Transport/5xx/unexpected error
+statuses are `Unavailable`. Contractual errors must first pass closed-body,
+exact-code, JSON/no-store and applicable challenge validation:
+
+| Status/code | Client behavior |
+| --- | --- |
+| 400 `invalid_request` | Retain session/detail and report invalid request. |
+| 401 `unauthorized` | Require Bearer challenge; discard session and all protected data. |
+| 403 `forbidden` | Require absent challenge; retain session/data and explain admin requirement. |
+| 404 `user_not_found` | Retain session; discard stale detail and report missing target. |
+| 409 `last_admin` | Retain session/detail/list and checkbox selection; explain zero enabled admins. |
+
+Malformed contractual errors are `InvalidResponse`, never their functional state.
+The client does not count users, guess the last administrator or block a valid
+request from the loaded window. The backend enforces the invariant atomically.
+
+On confirmed success, detail becomes exactly the returned User. A matching row
+in the loaded collection is replaced with that same response; other rows,
+offset/limit/total/order stay unchanged. No insertion, ID comparison/reordering,
+optimistic update or collection reload is needed.
+
+Self-updates compare the returned ID to `/api/auth/me`. If the returned user is
+disabled, the bearer is immediately discarded and all protected data cleared.
+If enabled but no longer admin, the bearer stays, current profile becomes the
+returned User, and collection/detail/create/update data and admin UI disappear.
+If still enabled/admin, current profile is updated while the session remains.
+Updating another user does not change the current profile. No rollback is tried.
+
+The update subscription belongs to the protected lifecycle: another detail,
+backend switch, Clear session, replacement login, profile reload, collection
+reload/pagination, replacement PATCH and component destruction cancel it.
+Checkboxes reset with new detail contexts. Cancellation prevents stale response
+acceptance but **does not roll back a PATCH already processed by the server**.
+There are no automatic retries.
+
+Nginx changes only the existing validated detail location from GET to GET/PATCH.
+Encoded single-segment IDs, extra-segment rejection, bearer/body/Content-Type,
+backend isolation, redirect rejection and disabled buffering remain intact.
+Collection stays GET/POST and profile stays GET-only.
+
+Angular contract/component tests cover partial requests, strict response/error
+validation, server-confirmed row replacement, self-updates and cancellation.
+The isolated fake mutates only its in-memory collection; subsequent detail/list
+reads reflect PATCH results. It counts enabled administrators in the proposed
+result and rejects last-admin mutations without changing state. Both proxy smoke
+flows cover 200/400/401/403/404/409, encoded IDs and still-blocked methods.
+
+Real `demo-check` first verifies the probe ID is absent with administrator GET
+(404), refusing to send any PATCH if this precondition fails. It probes PATCH
+only with a regular bearer (403) and an
+administrator bearer targeting an absent ID (404), through both client proxies.
+It never sends an administrator PATCH to an existing persistent identity, never
+tests real 200/409, and never changes enabled/admin/email/password, creates
+accounts, resets accounts or deletes volumes. `demo-up` now verifies the existing
+regular identity instead of provisioning one. Success/last_admin are covered in
+Angular/fake checks; backend conformance remains a separate backend-owned fact.
+
+Email/password editing, DELETE, roles/permissions, search/filter/custom sorting,
+generic CRUD and routing remain outside scope. No dependencies are added.
+
+### WEB-003D local verification (2026-10-12)
+
+`./bin/check` exited 0: all 374 Angular tests (14 files, including 60 PATCH
+contract and 26 update component tests), 13 Python tests, formatting, shell/
+Compose validation, production build and both isolated runtime/proxy flows
+passed. Existing Health/login/profile/list/detail/create tests remain enabled.
+Both mock proxies passed PATCH 200/400/401/403/404/409, coherent subsequent reads,
+and explicit blocking of PATCH collection/profile and POST/DELETE detail.
+
+The final `./bin/demo-up`, `./bin/demo-check` and `./bin/demo-down` each exited 0.
+Java and .NET PATCH forwarding passed regular-user 403 and verified-absent-target
+404 through the client. No persistent identity was modified, no accounts were
+created and no volumes were removed. Real PATCH 200/409 were not attempted.
+`git diff --check` passed. Scope review found only enabled/admin updating, with
+no new dependencies, secrets, backend-specific client behavior or magic literals.
+The README's obsolete editing limitation was generalized; detailed behavior
+and evidence live here. These checks do not claim a new backend conformance run.
 
 ## Stop
 
@@ -329,7 +429,9 @@ both direct backends, read-only profile/list/detail and 401/403/404 through both
 client proxies, regular-user admin denial, and each identity's successful
 and incorrect-password login through both client proxies. WEB-003C also checks
 POST forwarding with administrator existing-email 409 and regular-user 403;
-these checks neither create accounts nor alter persistent identities. Response
+these checks neither create accounts nor alter persistent identities. WEB-003D
+adds non-mutating PATCH forwarding checks for regular-user 403 and absent-target
+404; real 200/409 are deliberately excluded. Response
 structures,
 status codes and contractual no-store/challenge headers are checked. The client
 runtime resource must exactly match the four effective shared values. Angular
@@ -346,8 +448,8 @@ not normal CI or a substitute for the backend shared Bruno suites.
 
 For manual diagnosis, use each owner's `bin/up`/`bin/down` with the mappings above
 and inspect direct/proxied Health. Prefer `demo-up` for the complete sequence,
-including safe JSON construction and regular-user creation/verification; simply
-starting three containers does not provision the shared identities.
+including safe JSON construction and existing-identity verification. Provision
+the regular identity independently before using this persistent demo workflow.
 
 ## DEMO-001B integration verification (2026-10-10)
 

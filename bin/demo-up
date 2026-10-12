@@ -16,7 +16,7 @@ ERBAS_CORE_ADMIN_PASSWORD="$ERBAS_DEMO_ADMIN_PASSWORD" \
 run_owner .NET "$dotnet_dir" up
 wait_for_http Java "$java_url"
 wait_for_http .NET "$dotnet_url"
-python3 "$demo_root/demo/identities.py" provision "${java_url%/health}" "${dotnet_url%/health}"
+python3 "$demo_root/demo/identities.py" verify "${java_url%/health}" "${dotnet_url%/health}"
 run_owner Client "$demo_root" up
 wait_for_http Client "$client_url"
 printf '\nDevelopment environment ready (HTTP 200):\n  Java:   %s\n  .NET:   %s\n  Client: %s\nRun ./bin/demo-check to verify both real backend contracts and proxies.\n' "$java_url" "$dotnet_url" "$client_url"

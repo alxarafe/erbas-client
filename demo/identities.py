@@ -76,14 +76,17 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
 
 
-def request(url, payload=None, token=None, raw=False):
+PATCH_METHOD = "PATCH"
+
+
+def request(url, payload=None, token=None, raw=False, method=None):
     headers = {"Accept": "text/plain" if raw else "application/json"}
     if payload is not None:
         headers["Content-Type"] = "application/json"
     if token is not None:
         headers["Authorization"] = "Bearer " + token
     req = urllib.request.Request(url, headers=headers,
-                                 data=None if payload is None else json.dumps(payload).encode())
+                                 data=None if payload is None else json.dumps(payload).encode(), method=method)
     try:
         response = OPENER.open(req, timeout=7)
     except urllib.error.HTTPError as error:
@@ -232,6 +235,26 @@ def verify_creation(label, base, values):
     print(f"OK: {label} POST users: existing-email 409 and regular-user 403 (no accounts created).")
 
 
+def verify_update(label, base, values):
+    """Only denied or absent-target PATCH probes; never update a persistent identity."""
+    admin_token = login(base, values[NAMES[0]], values[NAMES[1]])
+    regular_token = login(base, values[NAMES[2]], values[NAMES[3]])
+    # The target is absent for both probes, including the regular-user denial.
+    path = USERS_ENDPOINT + "/" + quote(UNKNOWN_USER_ID, safe="")
+    status, headers, body = request(base + path, token=admin_token)
+    no_store(headers)
+    require(status == HTTPStatus.NOT_FOUND and body == {"code": PROTECTED_ERRORS[HTTPStatus.NOT_FOUND]}
+            and headers.get(USER_CHALLENGE_HEADER) is None,
+            f"{label}: PATCH probe target is not verified absent; no PATCH sent.")
+    for token, expected in ((regular_token, HTTPStatus.FORBIDDEN), (admin_token, HTTPStatus.NOT_FOUND)):
+        status, headers, body = request(base + path, {"enabled": False}, token=token, method=PATCH_METHOD)
+        no_store(headers)
+        require(status == expected and body == {"code": PROTECTED_ERRORS[expected]}
+                and headers.get(USER_CHALLENGE_HEADER) is None,
+                f"{label}: non-mutating PATCH check failed; response details withheld.")
+    print(f"OK: {label} PATCH detail: regular-user 403 and absent-target 404 (no persistent mutations).")
+
+
 def check(java, dotnet, client, values):
     for label, url in (("Java direct", java + "/health"), (".NET direct", dotnet + "/health"),
                        ("Client → Java", client + "/backends/java/health"),
@@ -251,6 +274,7 @@ def check(java, dotnet, client, values):
         proxy = client + "/backends/" + backend
         verify_reads("Client → " + label, proxy, values)
         verify_creation("Client → " + label, proxy, values)
+        verify_update("Client → " + label, proxy, values)
         for email_key, password_key in (NAMES[:2], NAMES[2:]):
             login(proxy, values[email_key], values[password_key])
             status, headers, body = request(proxy + "/api/auth/login", {
@@ -258,7 +282,7 @@ def check(java, dotnet, client, values):
             require(status == 401 and body == {"code": "invalid_credentials"}
                     and headers.get(USER_CHALLENGE_HEADER) == "Bearer", f"{label}: incorrect-password proxy check failed.")
         print(f"OK: Client → {label} administrator/regular login and incorrect-password behavior.")
-    print("DEMO CHECK PASS: both identities, direct/proxied Health, user reads and non-mutating creation checks, login proxies and client runtime defaults.")
+    print("DEMO CHECK PASS: both identities, direct/proxied Health, user reads and non-mutating creation/update checks, login proxies and client runtime defaults.")
 
 
 def main():
@@ -267,10 +291,10 @@ def main():
         values = resolve_defaults(args[0], os.environ)
         for name in NAMES:
             print(name + "=" + values[name])
-    elif mode == "provision" and len(args) == 2:
+    elif mode in ("provision", "verify") and len(args) == 2:
         values = validate_values({name: os.environ.get(name) for name in NAMES})
         for label, base in zip(("Java", ".NET"), args):
-            verify_backend(label, base, values, provision=True)
+            verify_backend(label, base, values, provision=mode == "provision")
     elif mode == "check" and len(args) == 3:
         check(*args, validate_values({name: os.environ.get(name) for name in NAMES}))
     else:

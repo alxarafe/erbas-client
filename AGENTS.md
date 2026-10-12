@@ -15,7 +15,9 @@ explicitly authoritative. Profile/detail failures retain authentication except
 is never persisted. Successful creation refreshes an already loaded collection
 from the same server offset, without optimistic insertion. Client cancellation
 prevents stale response acceptance; it does not roll back a server mutation.
-User updating/editing remains unimplemented. These slices are completed.
+WEB-003D completes basic user administration with partial enabled/admin updates,
+contractual last_admin handling, immediate session cleanup on self-disable and
+administrative-data cleanup on self-demotion. These slices are completed.
 Do not create placeholder applications or containers. The client owns
 `ERBAS_CLIENT_PORT` mapping: default loopback host port 48082 to container port 80.
 Follow the common convention in `erbas-contract/docs/development-ports.md`.

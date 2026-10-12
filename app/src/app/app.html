@@ -1,6 +1,6 @@
 <main>
   <header>
-    <p class="eyebrow">SHARED CLIENT · WEB-003C</p>
+    <p class="eyebrow">SHARED CLIENT · WEB-003</p>
     <h1>ERBAS</h1>
     <p>One executable contract. Multiple interchangeable implementations.</p>
   </header>
@@ -270,6 +270,11 @@
         </button>
       </nav>
     }
+    @if (administrator() || updateState() === updateStates.Unauthorized) {
+      <p aria-live="polite" aria-atomic="true">
+        {{ updateMessages[updateState()] }}
+      </p>
+    }
     <div
       id="user-detail"
       aria-live="polite"
@@ -283,6 +288,37 @@
         }
         <p>{{ detailMessages[detailState()] }}</p>
         @if (detailUser(); as user) {
+          @if (administrator()) {
+            <form
+              id="update-user"
+              (submit)="updateUser($event)"
+              [attr.aria-busy]="updateState() === updateStates.Submitting"
+            >
+              <label for="update-enabled" class="checkbox-label">
+                <input
+                  #enabled
+                  id="update-enabled"
+                  type="checkbox"
+                  [checked]="updateEnabled()"
+                  (change)="updateEnabled.set(enabled.checked)"
+                />
+                Enabled
+              </label>
+              <label for="update-admin" class="checkbox-label">
+                <input
+                  #admin
+                  id="update-admin"
+                  type="checkbox"
+                  [checked]="updateAdmin()"
+                  (change)="updateAdmin.set(admin.checked)"
+                />
+                Administrator
+              </label>
+              <button type="submit" [disabled]="updateState() === updateStates.Submitting">
+                Update user
+              </button>
+            </form>
+          }
           <dl>
             <dt>ID</dt>
             <dd>{{ user.id }}</dd>

@@ -175,3 +175,47 @@ class UserCreateTests(unittest.TestCase):
                     demo.verify_creation("Fixture", "http://fixture", VALUES)
                 self.assertNotIn(VALUES[demo.NAMES[3]], str(error.exception))
                 self.assertNotIn("fixture-admin", str(error.exception))
+
+
+class UserUpdateTests(unittest.TestCase):
+    def test_probes_only_denial_and_absent_target_with_patch(self):
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        headers["Cache-Control"] = "no-store"
+        def reply(url, payload=None, token=None, method=None):
+            if url.endswith("/api/auth/login"):
+                return demo.HTTPStatus.OK, headers, {"accessToken": "admin-fixture" if payload["email"] == VALUES[demo.NAMES[0]] else "regular-fixture"}
+            if method is None:
+                self.assertIsNone(payload)
+                return demo.HTTPStatus.NOT_FOUND, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND]}
+            self.assertEqual(method, demo.PATCH_METHOD)
+            self.assertTrue(url.endswith(demo.UNKNOWN_USER_ID))
+            self.assertEqual(payload, {"enabled": False})
+            status = demo.HTTPStatus.NOT_FOUND if token == "admin-fixture" else demo.HTTPStatus.FORBIDDEN
+            return status, headers, {"code": demo.PROTECTED_ERRORS[status]}
+        with patch.object(demo, "request", side_effect=reply) as request, patch("builtins.print"):
+            demo.verify_update("Fixture", "http://fixture", VALUES)
+        self.assertEqual(request.call_count, 5)
+
+    def test_never_accepts_mutation_success_or_last_admin(self):
+        for status in (demo.HTTPStatus.OK, demo.HTTPStatus.CONFLICT):
+            headers = Message(); headers["Cache-Control"] = "no-store"
+            def reply(url, payload=None, token=None, method=None):
+                if url.endswith("/api/auth/login"):
+                    return demo.HTTPStatus.OK, headers, {"accessToken": "fixture"}
+                if method is None:
+                    return demo.HTTPStatus.NOT_FOUND, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND]}
+                return status, headers, {"code": "last_admin"}
+            with patch.object(demo, "request", side_effect=reply), self.assertRaises(demo.DemoError):
+                demo.verify_update("Fixture", "http://fixture", VALUES)
+
+    def test_existing_probe_target_stops_before_any_patch(self):
+        headers = Message(); headers["Cache-Control"] = "no-store"
+        def reply(url, payload=None, token=None, method=None):
+            self.assertIsNone(method)
+            if url.endswith("/api/auth/login"):
+                return demo.HTTPStatus.OK, headers, {"accessToken": "fixture"}
+            return demo.HTTPStatus.OK, headers, {"id": demo.UNKNOWN_USER_ID}
+        with patch.object(demo, "request", side_effect=reply) as request, self.assertRaises(demo.DemoError):
+            demo.verify_update("Fixture", "http://fixture", VALUES)
+        self.assertEqual(request.call_count, 3)

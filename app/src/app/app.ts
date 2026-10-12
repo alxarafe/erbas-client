@@ -15,8 +15,10 @@ import {
   USERS_PAGE_SIZE,
   USER_PASSWORD_LENGTH,
   isCreateUserRequest,
+  UpdateUserRequest,
 } from './users-client';
 import { UserReadState } from './user-read-state';
+import { UserUpdateState } from './user-update-state';
 import { UserCreateState } from './user-create-state';
 import { DemoDefaults, parseDemoDefaults } from './demo-defaults';
 
@@ -125,6 +127,25 @@ export class App {
     [UserCreateState.Unavailable]: 'The user creation service is unavailable.',
     [UserCreateState.InvalidResponse]: 'The backend returned an invalid creation response.',
   };
+  readonly updateStates = UserUpdateState;
+  readonly updateState = signal<UserUpdateState>(UserUpdateState.Idle);
+  readonly updateEnabled = signal(false);
+  readonly updateAdmin = signal(false);
+  readonly updateMessages: Record<UserUpdateState, string> = {
+    [UserUpdateState.Idle]: 'Change enabled or administrator status.',
+    [UserUpdateState.Submitting]: 'Updating user…',
+    [UserUpdateState.Updated]: 'User updated.',
+    [UserUpdateState.NoChanges]: 'No changes to update.',
+    [UserUpdateState.InvalidRequest]: 'The update request is invalid.',
+    [UserUpdateState.Unauthorized]: SESSION_UNUSABLE_MESSAGE,
+    [UserUpdateState.Forbidden]: ADMINISTRATOR_REQUIRED_MESSAGE,
+    [UserUpdateState.NotFound]: 'The target user no longer exists. Reload users.',
+    [UserUpdateState.LastAdmin]:
+      'This operation would leave the system without an enabled administrator.',
+    [UserUpdateState.Unavailable]: 'The user update service is unavailable.',
+    [UserUpdateState.InvalidResponse]: 'The backend returned an invalid update response.',
+  };
+  private updateRequest?: Subscription;
   private createRequest?: Subscription;
   private readonly usersClient = inject(UsersClient);
   private profileRequest?: Subscription;
@@ -150,6 +171,7 @@ export class App {
       this.profileRequest?.unsubscribe();
       this.detailRequest?.unsubscribe();
       this.createRequest?.unsubscribe();
+      this.updateRequest?.unsubscribe();
     });
   }
 
@@ -209,7 +231,15 @@ export class App {
     this.usersState.set(UserReadState.Idle);
   }
 
+  private clearUpdate(): void {
+    this.updateRequest?.unsubscribe();
+    this.updateState.set(UserUpdateState.Idle);
+    this.updateEnabled.set(false);
+    this.updateAdmin.set(false);
+  }
+
   private clearDetail(): void {
+    this.clearUpdate();
     this.detailRequest?.unsubscribe();
     this.detailUser.set(null);
     this.selectedUserId.set(null);
@@ -225,6 +255,82 @@ export class App {
     this.createRequest?.unsubscribe();
     this.createdUser.set(null);
     this.createState.set(UserCreateState.Idle);
+  }
+
+  updateUser(event: Event): void {
+    event.preventDefault();
+    this.updateRequest?.unsubscribe();
+    const user = this.detailUser();
+    const backend = this.selection.selected();
+    const bearer = this.session.tokenFor(backend.id);
+    if (!user || bearer === null || !this.administrator()) return;
+    const request: UpdateUserRequest = {
+      ...(this.updateEnabled() !== user.enabled ? { enabled: this.updateEnabled() } : {}),
+      ...(this.updateAdmin() !== user.admin ? { admin: this.updateAdmin() } : {}),
+    };
+    if (Object.keys(request).length === 0) {
+      this.updateState.set(UserUpdateState.NoChanges);
+      return;
+    }
+    this.updateState.set(UserUpdateState.Submitting);
+    this.updateRequest = this.usersClient
+      .update(backend.proxyBaseUrl, bearer, user.id, request)
+      .subscribe({
+        next: (updated) => {
+          if (updated.id === this.currentUser()?.id) {
+            if (!updated.enabled) {
+              this.clearSession();
+              return;
+            }
+            if (!updated.admin) {
+              this.clearProtectedData();
+              this.currentUser.set(updated);
+              this.profileState.set(UserReadState.Loaded);
+              return;
+            }
+            this.currentUser.set(updated);
+          }
+          this.detailUser.set(updated);
+          this.updateEnabled.set(updated.enabled);
+          this.updateAdmin.set(updated.admin);
+          this.users.update((collection) =>
+            collection
+              ? {
+                  ...collection,
+                  items: collection.items.map((row) => (row.id === updated.id ? updated : row)),
+                }
+              : null,
+          );
+          this.updateState.set(UserUpdateState.Updated);
+        },
+        error: (error: unknown) => {
+          let state = UserUpdateState.Unavailable;
+          if (error instanceof InvalidUsersResponseError) state = UserUpdateState.InvalidResponse;
+          else if (error instanceof HttpErrorResponse) {
+            switch (error.status) {
+              case HttpStatusCode.BadRequest:
+                state = UserUpdateState.InvalidRequest;
+                break;
+              case HttpStatusCode.Unauthorized:
+                this.clearSession();
+                state = UserUpdateState.Unauthorized;
+                break;
+              case HttpStatusCode.Forbidden:
+                state = UserUpdateState.Forbidden;
+                break;
+              case HttpStatusCode.NotFound:
+                this.detailUser.set(null);
+                this.detailState.set(UserReadState.NotFound);
+                state = UserUpdateState.NotFound;
+                break;
+              case HttpStatusCode.Conflict:
+                state = UserUpdateState.LastAdmin;
+                break;
+            }
+          }
+          this.updateState.set(state);
+        },
+      });
   }
 
   createUser(
@@ -322,6 +428,8 @@ export class App {
     this.detailRequest = this.usersClient.detail(backend.proxyBaseUrl, bearer, id).subscribe({
       next: (user) => {
         this.detailUser.set(user);
+        this.updateEnabled.set(user.enabled);
+        this.updateAdmin.set(user.admin);
         this.detailState.set(UserReadState.Loaded);
       },
       error: (error: unknown) => this.detailState.set(this.readError(error)),
