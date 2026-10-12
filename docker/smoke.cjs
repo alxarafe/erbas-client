@@ -1,10 +1,11 @@
+const PATCH_METHOD = 'PATCH';
 const assert = require('node:assert/strict');
 const USERS_ENDPOINT = '/api/users';
 const CURRENT_USER_ENDPOINT = '/api/auth/me';
 const USER_HTTP = { accept: 'Accept', authorization: 'Authorization', json: 'application/json',
   contentType: 'content-type', cacheControl: 'cache-control', noStore: 'no-store', bearer: 'Bearer', challenge: 'www-authenticate' };
 const USER_FIELDS = 'admin,email,enabled,id';
-const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', conflict: 'email_conflict' };
+const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', conflict: 'email_conflict', notFound: 'user_not_found', lastAdmin: 'last_admin' };
 const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409, unauthorized: 401, forbidden: 403, notFound: 404, badGateway: 502 };
 (async () => {
   let ready = false;
@@ -142,15 +143,60 @@ const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409,
     const redirectDetail = await protectedGet(`${USERS_ENDPOINT}/redirect-fixture`);
     assert.equal(redirectDetail.status, READ_STATUS.badGateway);
     assert.equal(redirectDetail.headers.get('location'), null);
-    for (const method of ['POST', 'PATCH', 'DELETE']) {
+    const patch = (id, request, bearer = body.accessToken) => fetch(`http://client/backends/${backend}${USERS_ENDPOINT}/${encodeURIComponent(id)}`, {
+      method: PATCH_METHOD, redirect: 'manual', headers: {
+        [USER_HTTP.accept]: USER_HTTP.json, [USER_HTTP.contentType]: USER_HTTP.json,
+        [USER_HTTP.authorization]: `${USER_HTTP.bearer} ${bearer}`,
+      }, body: JSON.stringify(request),
+    });
+    const opaqueId = 'opaque /?#% user';
+    let expectedUser = await (await protectedGet(`${USERS_ENDPOINT}/${encodeURIComponent(opaqueId)}`)).json();
+    for (const changes of [{ enabled: false }, { admin: true }, { enabled: true, admin: false }]) {
+      const response = await patch(opaqueId, changes);
+      assert.equal(response.status, READ_STATUS.ok);
+      assert.equal(response.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+      assert.equal(response.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+      const updated = await response.json();
+      expectedUser = { ...expectedUser, ...changes };
+      assert.deepEqual(updated, expectedUser);
+      assert.deepEqual(await (await protectedGet(`${USERS_ENDPOINT}/${encodeURIComponent(opaqueId)}`)).json(), updated);
+      const window = await (await users(0, 50)).json();
+      assert.deepEqual(window.items.find(user => user.id === opaqueId), updated);
+      assert.equal(window.total, newWindow.total);
+      assert.deepEqual(window.order, newWindow.order);
+    }
+    const unchangedAdmin = await (await protectedGet(`${USERS_ENDPOINT}/opaque-a`)).json();
+    for (const [id, request, bearer, status, code] of [
+      [opaqueId, {}, body.accessToken, READ_STATUS.invalidRequest, USER_ERRORS.invalidRequest],
+      [opaqueId, { enabled: 'false' }, body.accessToken, READ_STATUS.invalidRequest, USER_ERRORS.invalidRequest],
+      [opaqueId, { enabled: false, email: 'extra' }, body.accessToken, READ_STATUS.invalidRequest, USER_ERRORS.invalidRequest],
+      [opaqueId, { enabled: false }, 'invalid-bearer', READ_STATUS.unauthorized, USER_ERRORS.unauthorized],
+      ['absent', { enabled: false }, 'fictitious-regular-token', READ_STATUS.forbidden, USER_ERRORS.forbidden],
+      ['absent', { admin: true }, body.accessToken, READ_STATUS.notFound, USER_ERRORS.notFound],
+      ['opaque-a', { enabled: false }, body.accessToken, READ_STATUS.conflict, USER_ERRORS.lastAdmin],
+      ['opaque-a', { admin: false }, body.accessToken, READ_STATUS.conflict, USER_ERRORS.lastAdmin],
+      ['opaque-a', { enabled: false, admin: false }, body.accessToken, READ_STATUS.conflict, USER_ERRORS.lastAdmin],
+    ]) {
+      const failure = await patch(id, request, bearer);
+      assert.equal(failure.status, status);
+      assert.equal(failure.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+      assert.equal(failure.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+      assert.equal(failure.headers.get(USER_HTTP.challenge), status === READ_STATUS.unauthorized ? USER_HTTP.bearer : null);
+      assert.deepEqual(await failure.json(), { code });
+    }
+    assert.deepEqual(await (await protectedGet(`${USERS_ENDPOINT}/opaque-a`)).json(), unchangedAdmin);
+    assert.equal((await fetch(`http://client/backends/${backend}${CURRENT_USER_ENDPOINT}`, { method: PATCH_METHOD })).status, READ_STATUS.forbidden);
+    assert.equal((await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}/opaque-a/extra`, { method: PATCH_METHOD })).status, READ_STATUS.notFound);
+    console.log(`OK: ${backend} PATCH detail (200/400/401/403/404/409), stateful reads, opaque ID and atomic last_admin.`);
+    for (const method of ['POST', 'DELETE']) {
       const mutation = await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}/opaque-a`, { method });
       assert.equal(mutation.status, READ_STATUS.forbidden);
       assert.equal((await fetch(`http://client/backends/${backend}${CURRENT_USER_ENDPOINT}`, { method })).status, READ_STATUS.forbidden);
     }
-    for (const method of ['PATCH', 'DELETE'])
+    for (const method of [PATCH_METHOD, 'DELETE'])
       assert.equal((await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}`, { method })).status, READ_STATUS.forbidden);
     assert.equal((await fetch(`http://client/backends/${backend}${USERS_ENDPOINT}/opaque-a/extra`)).status, READ_STATUS.notFound);
-    console.log(`OK: ${backend} read-only profile/detail proxies, encoded opaque ID, no-store, 401/404 and redirect/mutation blocking.`);
+    console.log(`OK: ${backend} profile and GET/PATCH detail proxies, encoded opaque ID, no-store, 401/404 and redirect/mutation blocking.`);
     console.log(`OK: ${backend} mock users proxy (bearer, query, 200/400/401/403, no-store and redirect blocking).`);
   }
   console.log('Runtime and proxy smoke tests passed (isolated mocks, no host ports).');

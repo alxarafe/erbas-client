@@ -24,13 +24,39 @@ export interface CreateUserRequest {
   readonly password: string;
   readonly admin: boolean;
 }
-export const USER_CREATE_ERRORS = {
+const USER_PROTECTED_ERRORS = {
   [HttpStatusCode.BadRequest]: 'invalid_request',
   [HttpStatusCode.Unauthorized]: 'unauthorized',
   [HttpStatusCode.Forbidden]: 'forbidden',
+} as const;
+export const USER_CREATE_ERRORS = {
+  ...USER_PROTECTED_ERRORS,
   [HttpStatusCode.Conflict]: 'email_conflict',
 } as const;
 const CREATE_FIELDS: readonly (keyof CreateUserRequest)[] = ['email', 'password', 'admin'];
+export interface UpdateUserRequest {
+  readonly enabled?: boolean;
+  readonly admin?: boolean;
+}
+const USER_UPDATE_FIELDS: readonly (keyof UpdateUserRequest)[] = ['enabled', 'admin'];
+export const USER_UPDATE_ERRORS = {
+  ...USER_PROTECTED_ERRORS,
+  [HttpStatusCode.NotFound]: 'user_not_found',
+  [HttpStatusCode.Conflict]: 'last_admin',
+} as const;
+export function isUpdateUserRequest(value: unknown): value is UpdateUserRequest {
+  if (!object(value)) return false;
+  const fields = Object.keys(value);
+  return (
+    fields.length > 0 &&
+    fields.length <= USER_UPDATE_FIELDS.length &&
+    fields.every(
+      (field) =>
+        USER_UPDATE_FIELDS.includes(field as keyof UpdateUserRequest) &&
+        typeof value[field] === 'boolean',
+    )
+  );
+}
 const ERROR_FIELDS = ['code'];
 
 export function isCreateUserRequest(value: unknown): value is CreateUserRequest {
@@ -145,6 +171,17 @@ function validHttp(
     response.headers.get(USER_HTTP.cacheControl)?.trim().toLowerCase() === USER_HTTP.noStore
   );
 }
+function validProtectedError(error: HttpErrorResponse, code: string): boolean {
+  return (
+    validHttp(error, error.status) &&
+    object(error.error) &&
+    keys(error.error, ERROR_FIELDS) &&
+    error.error['code'] === code &&
+    (error.status !== HttpStatusCode.Unauthorized ||
+      error.headers.get(USER_HTTP.challenge) === USER_HTTP.bearer) &&
+    (error.status !== HttpStatusCode.Forbidden || !error.headers.has(USER_HTTP.challenge))
+  );
+}
 function headers(bearer: string): Record<string, string> {
   return {
     [USER_HTTP.accept]: USER_HTTP.json,
@@ -188,15 +225,52 @@ export class UsersClient {
             const code = USER_CREATE_ERRORS[error.status as keyof typeof USER_CREATE_ERRORS];
             if (
               error.status === HttpStatusCode.Created ||
-              (code !== undefined &&
-                (!validHttp(error, error.status) ||
-                  !object(error.error) ||
-                  !keys(error.error, ERROR_FIELDS) ||
-                  error.error['code'] !== code ||
-                  (error.status === HttpStatusCode.Unauthorized &&
-                    error.headers.get(USER_HTTP.challenge) !== USER_HTTP.bearer) ||
-                  (error.status === HttpStatusCode.Forbidden &&
-                    error.headers.has(USER_HTTP.challenge))))
+              (code !== undefined && !validProtectedError(error, code))
+            )
+              return throwError(() => new InvalidUsersResponseError());
+          }
+          return throwError(() => error);
+        }),
+      );
+  }
+
+  update(
+    baseUrl: string,
+    bearer: string,
+    id: string,
+    request: UpdateUserRequest,
+  ): Observable<User> {
+    if (typeof id !== 'string' || id.length === 0) throw new RangeError('User ID must be nonempty');
+    if (!isUpdateUserRequest(request)) throw new RangeError('Invalid update-user request');
+    const body = { ...request };
+    return this.http
+      .patch<unknown>(`${baseUrl}${USERS_ENDPOINT}/${encodeURIComponent(id)}`, body, {
+        headers: {
+          ...headers(bearer),
+          [USER_HTTP.contentType]: USER_HTTP.json,
+        },
+        observe: 'response',
+      })
+      .pipe(
+        map((response) => {
+          const user = response.body;
+          if (
+            !validHttp(response) ||
+            !isUser(user) ||
+            user.id !== id ||
+            USER_UPDATE_FIELDS.some(
+              (field) => Object.hasOwn(body, field) && user[field] !== body[field],
+            )
+          )
+            throw new InvalidUsersResponseError();
+          return user;
+        }),
+        catchError((error: unknown) => {
+          if (error instanceof HttpErrorResponse) {
+            const code = USER_UPDATE_ERRORS[error.status as keyof typeof USER_UPDATE_ERRORS];
+            if (
+              error.status === HttpStatusCode.Ok ||
+              (code !== undefined && !validProtectedError(error, code))
             )
               return throwError(() => new InvalidUsersResponseError());
           }
