@@ -45,6 +45,36 @@ repository-specific rules.
 Task approval does not authorize push, PR creation, merge, tag, release,
 publication or deployment; each requires separate express authorization.
 
+### Efficient validation execution
+
+During implementation, prefer the narrowest applicable validation that gives
+useful feedback — the focused unit, build, or other checks this repository already
+provides — before running broader or full validation. Do not invent new
+verification commands or architecture.
+
+Do not run a long-running repository-wide test, image build, demo verification, or
+full `./bin/check` inside an AI-agent session merely to wait for it to finish when
+the developer or CI can run it directly. Repeatedly polling such a process is
+specifically discouraged: each poll may cost another model turn that reprocesses
+the existing conversation and repository context even though the external process
+itself needs no reasoning, consuming effort without adding engineering value.
+
+Whether a command is "long-running" depends on the repository and the task; no
+fixed duration threshold applies. When a required full validation is expected to
+take materially longer than the focused checks, normally provide the exact command
+for the developer or CI to execute. That required long full validation must still
+pass: when its result is required before commit or task completion, stop and wait
+for it, continue only once it is provided, and never claim the validation passed
+unless its result is actually known.
+
+If a long-running command genuinely must be executed by the agent, avoid repeated
+polling, wait as efficiently as the available tooling permits, and do not
+repeatedly reread unchanged files or rerun unchanged validations.
+
+This changes execution responsibility, not validation authority, and a failed or
+missing required validation still blocks task completion or commit exactly as
+before.
+
 ## Documentation impact review
 
 Every task must review its documentation impact after implementation, validation
