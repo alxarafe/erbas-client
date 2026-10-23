@@ -33,7 +33,8 @@ label {
   margin-bottom: 8px;
 }
 select,
-input {
+input,
+textarea {
   width: 100%;
   padding: 12px;
   border: 1px solid #8798ad;
@@ -43,8 +44,17 @@ input {
   box-sizing: border-box;
 }
 .authentication,
+.assistant,
 .users {
   margin-top: 24px;
+}
+#assistant-message {
+  resize: vertical;
+  margin-bottom: 12px;
+}
+.assistant-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .authentication input,
 #create-user input:not([type='checkbox']) {

@@ -65,11 +65,23 @@ server {
         limit_except GET POST { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
+    location = /backends/java/api/ai/assistant/invocations {
+        set $upstream "${ERBAS_JAVA_UPSTREAM}";
+        proxy_pass http://$upstream/api/ai/assistant/invocations;
+        limit_except POST { deny all; }
+        include /etc/nginx/user-proxy.conf;
+    }
+    location = /backends/dotnet/api/ai/assistant/invocations {
+        set $upstream "${ERBAS_DOTNET_UPSTREAM}";
+        proxy_pass http://$upstream/api/ai/assistant/invocations;
+        limit_except POST { deny all; }
+        include /etc/nginx/user-proxy.conf;
+    }
     location = /proxy-error { internal; return 502; }
     location /backends/ {
         if ($user_detail_path = "") { return 404; }
+        if ($request_method !~ ^(?:GET|PATCH)$) { return 403; }
         proxy_pass http://$user_detail_upstream$user_detail_path;
-        limit_except GET PATCH { deny all; }
         include /etc/nginx/user-proxy.conf;
     }
     location / { try_files $uri $uri/ /index.html; }

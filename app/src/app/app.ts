@@ -8,6 +8,15 @@ import { HealthClient } from './health-client';
 import { AuthClient, InvalidLoginResponseError } from './auth-client';
 import { AuthSession } from './auth-session';
 import {
+  AI_ASSISTANT_FAILURES,
+  AI_ASSISTANT_MESSAGE_MAXIMUM,
+  AiAssistantClient,
+  AiAssistantFailureError,
+  InvalidAiAssistantResponseError,
+  isAiAssistantInvocationRequest,
+} from './ai-assistant-client';
+import { AiAssistantState } from './ai-assistant-state';
+import {
   UsersClient,
   User,
   UsersCollection,
@@ -64,6 +73,26 @@ export class App {
     'invalid-response': 'The backend returned an invalid login response.',
   };
   private readonly auth = inject(AuthClient);
+  readonly assistantStates = AiAssistantState;
+  readonly assistantMaximum = AI_ASSISTANT_MESSAGE_MAXIMUM;
+  readonly assistantState = signal<AiAssistantState>(AiAssistantState.Idle);
+  readonly assistantAnswer = signal<string | null>(null);
+  readonly assistantMessages: Record<AiAssistantState, string> = {
+    [AiAssistantState.Idle]: 'Ask the assistant about your effective READ data.',
+    [AiAssistantState.Submitting]: 'The assistant is working…',
+    [AiAssistantState.Answered]: 'The assistant answered.',
+    [AiAssistantState.InvalidRequest]: `Enter a nonempty message of at most ${AI_ASSISTANT_MESSAGE_MAXIMUM} Unicode scalar values without NUL or unpaired surrogates.`,
+    [AiAssistantState.Unauthorized]: SESSION_UNUSABLE_MESSAGE,
+    [AiAssistantState.Forbidden]:
+      'Your account is not allowed to use the AI assistant on the selected backend.',
+    [AiAssistantState.Unsupported]: 'The AI assistant is not available on the selected backend.',
+    [AiAssistantState.ExecutionFailed]: 'The assistant could not complete the request.',
+    [AiAssistantState.ModuleDisabled]: 'The AI assistant is disabled on the selected backend.',
+    [AiAssistantState.Unavailable]: 'The AI assistant is temporarily unavailable. Try again.',
+    [AiAssistantState.InvalidResponse]: 'The backend returned an invalid assistant response.',
+  };
+  private readonly assistantClient = inject(AiAssistantClient);
+  private assistantRequest?: Subscription;
   readonly users = signal<UsersCollection | null>(null);
   readonly userStates = UserReadState;
   readonly usersState = signal<UserReadState>(UserReadState.Idle);
@@ -167,6 +196,7 @@ export class App {
       demoRequest.unsubscribe();
       this.request?.unsubscribe();
       this.loginRequest?.unsubscribe();
+      this.assistantRequest?.unsubscribe();
       this.usersRequest?.unsubscribe();
       this.profileRequest?.unsubscribe();
       this.detailRequest?.unsubscribe();
@@ -185,6 +215,7 @@ export class App {
     event.preventDefault();
     const backend = this.selection.selected();
     this.loginRequest?.unsubscribe();
+    this.clearAssistant();
     this.clearProtectedData();
     this.session.clear();
     this.loginState.set('submitting');
@@ -220,9 +251,16 @@ export class App {
 
   clearSession(): void {
     this.loginRequest?.unsubscribe();
+    this.clearAssistant();
     this.clearProtectedData();
     this.session.clear();
     this.loginState.set('idle');
+  }
+
+  private clearAssistant(): void {
+    this.assistantRequest?.unsubscribe();
+    this.assistantAnswer.set(null);
+    this.assistantState.set(AiAssistantState.Idle);
   }
 
   private clearUsers(): void {
@@ -255,6 +293,65 @@ export class App {
     this.createRequest?.unsubscribe();
     this.createdUser.set(null);
     this.createState.set(UserCreateState.Idle);
+  }
+
+  invokeAssistant(event: Event, message: HTMLTextAreaElement): void {
+    event.preventDefault();
+    const backend = this.selection.selected();
+    const bearer = this.session.tokenFor(backend.id);
+    this.assistantRequest?.unsubscribe();
+    this.assistantAnswer.set(null);
+    if (bearer === null) {
+      this.assistantState.set(AiAssistantState.Idle);
+      return;
+    }
+    const request = { message: message.value };
+    if (!isAiAssistantInvocationRequest(request)) {
+      this.assistantState.set(AiAssistantState.InvalidRequest);
+      return;
+    }
+    this.assistantState.set(AiAssistantState.Submitting);
+    this.assistantRequest = this.assistantClient
+      .invoke(backend.proxyBaseUrl, bearer, request)
+      .subscribe({
+        next: (invocation) => {
+          message.value = '';
+          this.assistantAnswer.set(invocation.answer);
+          this.assistantState.set(AiAssistantState.Answered);
+        },
+        error: (error: unknown) => {
+          let state = AiAssistantState.Unavailable;
+          if (error instanceof InvalidAiAssistantResponseError) {
+            state = AiAssistantState.InvalidResponse;
+          } else if (error instanceof AiAssistantFailureError) {
+            switch (error.failure) {
+              case AI_ASSISTANT_FAILURES.invalidRequest:
+                state = AiAssistantState.InvalidRequest;
+                break;
+              case AI_ASSISTANT_FAILURES.unauthorized:
+                this.clearSession();
+                state = AiAssistantState.Unauthorized;
+                break;
+              case AI_ASSISTANT_FAILURES.forbidden:
+                state = AiAssistantState.Forbidden;
+                break;
+              case AI_ASSISTANT_FAILURES.unsupported:
+                state = AiAssistantState.Unsupported;
+                break;
+              case AI_ASSISTANT_FAILURES.executionFailed:
+                state = AiAssistantState.ExecutionFailed;
+                break;
+              case AI_ASSISTANT_FAILURES.moduleDisabled:
+                state = AiAssistantState.ModuleDisabled;
+                break;
+              case AI_ASSISTANT_FAILURES.unavailable:
+                state = AiAssistantState.Unavailable;
+                break;
+            }
+          }
+          this.assistantState.set(state);
+        },
+      });
   }
 
   updateUser(event: Event): void {

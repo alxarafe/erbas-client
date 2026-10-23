@@ -1,6 +1,6 @@
 const PATCH_METHOD = 'PATCH';
 const http = require('node:http');
-const READ_STATUS = { ok: 200, created: 201, conflict: 409, invalidRequest: 400, unauthorized: 401, forbidden: 403, notFound: 404, redirect: 302 };
+const READ_STATUS = { ok: 200, created: 201, conflict: 409, invalidRequest: 400, unauthorized: 401, forbidden: 403, notFound: 404, redirect: 302, internalServerError: 500, serviceUnavailable: 503 };
 const USER_HTTP = { accept: 'application/json', contentType: 'Content-Type', cacheControl: 'Cache-Control', noStore: 'no-store', challenge: 'WWW-Authenticate', bearer: 'Bearer' };
 const ADMIN_BEARER = 'Bearer fictitious-mock-token';
 const REGULAR_BEARER = 'Bearer fictitious-regular-token';
@@ -16,8 +16,103 @@ const MOCK_USERS = [
 const PASSWORD_LENGTH = { minimum: 12, maximum: 256 };
 const UPDATE_FIELDS = ['enabled', 'admin'];
 const CREATE_FIELDS = 'admin,email,password';
+const AI_ENDPOINT = '/api/ai/assistant/invocations';
+const AI_MESSAGE_MAXIMUM = 4000;
+const AI_CODES = {
+  invalidRequest: 'invalid_request',
+  unauthorized: 'unauthorized',
+  forbidden: 'forbidden',
+  executionFailed: 'assistant_execution_failed',
+  moduleDisabled: 'module_disabled',
+  unavailable: 'assistant_unavailable',
+};
+const AI_FIXTURE_MESSAGES = {
+  noTools: 'mock:no-tools',
+  executionFailed: 'mock:execution-failed',
+  moduleDisabled: 'mock:module-disabled',
+  unavailable: 'mock:unavailable',
+};
+function validAiMessage(message) {
+  if (typeof message !== 'string' || message.length === 0) return false;
+  let scalars = 0;
+  for (let index = 0; index < message.length; index++) {
+    const unit = message.charCodeAt(index);
+    if (unit === 0) return false;
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = message.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      index++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
+    if (++scalars > AI_MESSAGE_MAXIMUM) return false;
+  }
+  return /\S/u.test(message);
+}
 let checks = 0;
+let aiInvocations = 0;
 http.createServer((req, res) => {
+  const aiUrl = new URL(req.url, 'http://mock');
+  if (aiUrl.pathname === AI_ENDPOINT) {
+    const reply = (status, body, headers = {}) => {
+      res.writeHead(status, {
+        [USER_HTTP.contentType]: USER_HTTP.accept,
+        [USER_HTTP.cacheControl]: USER_HTTP.noStore,
+        ...headers,
+      });
+      res.end(JSON.stringify(body));
+    };
+    const failure = (status, code) => reply(status, { code, errors: [{ code }] },
+      status === 401 ? { [USER_HTTP.challenge]: USER_HTTP.bearer } : {});
+    if (req.method !== 'POST' || req.headers.accept !== USER_HTTP.accept) {
+      failure(READ_STATUS.invalidRequest, AI_CODES.invalidRequest);
+      return;
+    }
+    const bearer = req.headers.authorization;
+    if (bearer !== ADMIN_BEARER && bearer !== REGULAR_BEARER) {
+      failure(READ_STATUS.unauthorized, AI_CODES.unauthorized);
+      return;
+    }
+    if (bearer === REGULAR_BEARER) {
+      failure(READ_STATUS.forbidden, AI_CODES.forbidden);
+      return;
+    }
+    let data = '';
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => {
+      let body;
+      try { body = JSON.parse(data); } catch {
+        failure(READ_STATUS.invalidRequest, AI_CODES.invalidRequest);
+        return;
+      }
+      if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== USER_HTTP.accept ||
+          !body || typeof body !== 'object' || Array.isArray(body) ||
+          Object.keys(body).length !== 1 || !Object.hasOwn(body, 'message') ||
+          !validAiMessage(body.message)) {
+        failure(READ_STATUS.invalidRequest, AI_CODES.invalidRequest);
+        return;
+      }
+      if (body.message === AI_FIXTURE_MESSAGES.executionFailed) {
+        failure(READ_STATUS.internalServerError, AI_CODES.executionFailed);
+        return;
+      }
+      if (body.message === AI_FIXTURE_MESSAGES.moduleDisabled) {
+        failure(READ_STATUS.serviceUnavailable, AI_CODES.moduleDisabled);
+        return;
+      }
+      if (body.message === AI_FIXTURE_MESSAGES.unavailable) {
+        failure(READ_STATUS.serviceUnavailable, AI_CODES.unavailable);
+        return;
+      }
+      const invocation = ++aiInvocations;
+      reply(READ_STATUS.ok, {
+        invocationId: `ai-invocation-${invocation}`,
+        answer: 'Mock assistant answer.\nSecond line.',
+        toolsUsed: body.message === AI_FIXTURE_MESSAGES.noTools ? [] : [
+          { capabilityId: 'wms.uoms.list', invocationId: `core-invocation-${invocation}` },
+        ],
+      });
+    });
+    return;
+  }
   if (req.url.startsWith(USERS_ENDPOINT)) {
     const url = new URL(req.url, 'http://mock');
     const reply = (status, body, headers = {}) => {
