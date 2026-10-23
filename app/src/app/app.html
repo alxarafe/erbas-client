@@ -130,6 +130,53 @@
       <button type="button" (click)="clearSession()">Clear session</button>
     }
   </section>
+  <section class="assistant" aria-labelledby="assistant-heading">
+    <h2 id="assistant-heading">ERBAS Assistant</h2>
+    <p>The assistant answers using the effective READ capabilities available to your account.</p>
+    <p>Selected backend: {{ selection.selected().name }}.</p>
+    @if (!authenticated()) {
+      <p>Authentication is required to use the ERBAS Assistant on the selected backend.</p>
+      @if (assistantState() === assistantStates.Unauthorized) {
+        <p aria-live="polite" aria-atomic="true">{{ assistantMessages[assistantState()] }}</p>
+      }
+    } @else {
+      <form
+        id="assistant-form"
+        novalidate
+        (submit)="invokeAssistant($event, assistantMessage)"
+        [attr.aria-busy]="assistantState() === assistantStates.Submitting"
+      >
+        <label for="assistant-message">What do you need?</label>
+        <textarea
+          #assistantMessage
+          id="assistant-message"
+          rows="4"
+          required
+          aria-describedby="assistant-message-help"
+        ></textarea>
+        <p id="assistant-message-help">
+          Up to {{ assistantMaximum }} Unicode scalar values; whitespace and line breaks are
+          preserved.
+        </p>
+        <button type="submit" [disabled]="assistantState() === assistantStates.Submitting">
+          {{ assistantState() === assistantStates.Submitting ? 'Asking…' : 'Ask assistant' }}
+        </button>
+      </form>
+      <div
+        id="assistant-result"
+        aria-live="polite"
+        aria-atomic="true"
+        [attr.aria-busy]="assistantState() === assistantStates.Submitting"
+      >
+        @if (assistantState() !== assistantStates.Idle) {
+          <p>{{ assistantMessages[assistantState()] }}</p>
+        }
+        @if (assistantAnswer(); as answer) {
+          <p class="assistant-answer">{{ answer }}</p>
+        }
+      </div>
+    }
+  </section>
   <section
     class="users"
     aria-labelledby="users-heading"

@@ -2,11 +2,16 @@ const PATCH_METHOD = 'PATCH';
 const assert = require('node:assert/strict');
 const USERS_ENDPOINT = '/api/users';
 const CURRENT_USER_ENDPOINT = '/api/auth/me';
+const AI_ENDPOINT = '/api/ai/assistant/invocations';
 const USER_HTTP = { accept: 'Accept', authorization: 'Authorization', json: 'application/json',
   contentType: 'content-type', cacheControl: 'cache-control', noStore: 'no-store', bearer: 'Bearer', challenge: 'www-authenticate' };
 const USER_FIELDS = 'admin,email,enabled,id';
 const USER_ERRORS = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden', conflict: 'email_conflict', notFound: 'user_not_found', lastAdmin: 'last_admin' };
-const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409, unauthorized: 401, forbidden: 403, notFound: 404, badGateway: 502 };
+const AI_CODES = { invalidRequest: 'invalid_request', unauthorized: 'unauthorized', forbidden: 'forbidden',
+  executionFailed: 'assistant_execution_failed', moduleDisabled: 'module_disabled', unavailable: 'assistant_unavailable' };
+const AI_FIXTURE_MESSAGES = { noTools: 'mock:no-tools', executionFailed: 'mock:execution-failed',
+  moduleDisabled: 'mock:module-disabled', unavailable: 'mock:unavailable' };
+const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409, unauthorized: 401, forbidden: 403, notFound: 404, internalServerError: 500, badGateway: 502, serviceUnavailable: 503 };
 (async () => {
   let ready = false;
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -60,6 +65,68 @@ const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409,
     assert.ok(JSON.stringify(await invalid.json()) === '{"code":"invalid_request"}');
     assert.equal((await fetch(`http://client/backends/${backend}/api/auth/register`)).status, 404);
     console.log(`OK: ${backend} mock login proxy (200/400/401 and headers).`);
+    const assistantFetch = (payload, token = body.accessToken, method = 'POST') => fetch(
+      `http://client/backends/${backend}${AI_ENDPOINT}`, {
+        method, redirect: 'manual', headers: {
+          [USER_HTTP.accept]: USER_HTTP.json,
+          [USER_HTTP.contentType]: USER_HTTP.json,
+          ...(token === null ? {} : { [USER_HTTP.authorization]: `${USER_HTTP.bearer} ${token}` }),
+        },
+        body: method === 'POST' ? JSON.stringify(payload) : undefined,
+      });
+    const assistant = (message, token = body.accessToken) => assistantFetch({ message }, token);
+    const assistantError = async (message, token, status, code) => {
+      const response = await assistant(message, token);
+      assert.equal(response.status, status);
+      assert.equal(response.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+      assert.equal(response.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+      assert.equal(response.headers.get(USER_HTTP.challenge),
+        status === READ_STATUS.unauthorized ? USER_HTTP.bearer : null);
+      assert.deepEqual(await response.json(), { code, errors: [{ code }] });
+    };
+    await assistantError('Reply with a short greeting.', null, READ_STATUS.unauthorized,
+      AI_CODES.unauthorized);
+    await assistantError('Reply with a short greeting.', 'fictitious-regular-token',
+      READ_STATUS.forbidden, AI_CODES.forbidden);
+    const answered = await assistant('List the available units of measure.');
+    assert.equal(answered.status, READ_STATUS.ok);
+    assert.equal(answered.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+    assert.equal(answered.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+    assert.equal(answered.headers.get(USER_HTTP.challenge), null);
+    const answer = await answered.json();
+    assert.deepEqual(Object.keys(answer).sort(), ['answer', 'invocationId', 'toolsUsed']);
+    assert.ok(typeof answer.invocationId === 'string' && answer.invocationId.length > 0);
+    assert.equal(answer.answer, 'Mock assistant answer.\nSecond line.');
+    assert.deepEqual(answer.toolsUsed.map(tool => tool.capabilityId), ['wms.uoms.list']);
+    assert.ok(answer.toolsUsed.every(tool => typeof tool.invocationId === 'string' &&
+      tool.invocationId.length > 0 && tool.invocationId !== answer.invocationId));
+    const direct = await assistant(AI_FIXTURE_MESSAGES.noTools);
+    assert.equal(direct.status, READ_STATUS.ok);
+    const directAnswer = await direct.json();
+    assert.deepEqual(directAnswer.toolsUsed, []);
+    assert.ok(directAnswer.invocationId !== answer.invocationId);
+    await assistantError(AI_FIXTURE_MESSAGES.executionFailed, body.accessToken,
+      READ_STATUS.internalServerError, AI_CODES.executionFailed);
+    await assistantError(AI_FIXTURE_MESSAGES.moduleDisabled, body.accessToken,
+      READ_STATUS.serviceUnavailable, AI_CODES.moduleDisabled);
+    await assistantError(AI_FIXTURE_MESSAGES.unavailable, body.accessToken,
+      READ_STATUS.serviceUnavailable, AI_CODES.unavailable);
+    const malformedAssistant = await assistantFetch({ message: 42 });
+    assert.equal(malformedAssistant.status, READ_STATUS.invalidRequest);
+    assert.equal(malformedAssistant.headers.get(USER_HTTP.contentType), USER_HTTP.json);
+    assert.equal(malformedAssistant.headers.get(USER_HTTP.cacheControl), USER_HTTP.noStore);
+    assert.equal(malformedAssistant.headers.get(USER_HTTP.challenge), null);
+    assert.deepEqual(await malformedAssistant.json(), {
+      code: AI_CODES.invalidRequest, errors: [{ code: AI_CODES.invalidRequest }],
+    });
+    for (const method of ['GET', 'PATCH', 'PUT', 'DELETE'])
+      assert.equal((await assistantFetch(undefined, body.accessToken, method)).status,
+        READ_STATUS.forbidden);
+    assert.equal((await fetch(`http://client/backends/${backend}${AI_ENDPOINT}/extra`,
+      { method: 'POST' })).status, READ_STATUS.notFound);
+    assert.equal((await fetch(`http://client/backends/unknown${AI_ENDPOINT}`,
+      { method: 'POST' })).status, READ_STATUS.notFound);
+    console.log(`OK: ${backend} assistant proxy (200/400/401/403/500/503, bearer, body, headers and method/path blocking).`);
     const users = async (offset, limit, bearer = body.accessToken, method = 'GET') => fetch(
       `http://client/backends/${backend}/api/users?offset=${offset}&limit=${limit}`, {
         method, redirect: 'manual', headers: { Accept: 'application/json', Authorization: `Bearer ${bearer}` },

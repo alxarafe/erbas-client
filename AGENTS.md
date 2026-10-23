@@ -17,7 +17,13 @@ from the same server offset, without optimistic insertion. Client cancellation
 prevents stale response acceptance; it does not roll back a server mutation.
 WEB-003D completes basic user administration with partial enabled/admin updates,
 contractual last_admin handling, immediate session cleanup on self-disable and
-administrative-data cleanup on self-demotion. These slices are completed.
+administrative-data cleanup on self-demotion. AI-001C adds a minimal synchronous
+ERBAS Assistant for both selected backends through the same-origin proxy,
+consuming published AI-001 from erbas-contract v0.11.1. .NET implements the
+operation; Java may report it unavailable until adoption. The UI keeps one
+request at a time, validates the closed success response, preserves the session
+on authorization/module failures, and clears it on a validated 401. These slices
+are completed.
 Do not create placeholder applications or containers. The client owns
 `ERBAS_CLIENT_PORT` mapping: default loopback host port 48082 to container port 80.
 Follow the common convention in `erbas-contract/docs/development-ports.md`.

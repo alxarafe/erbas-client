@@ -145,11 +145,15 @@ origin, plus the exact `/backends/java/api/auth/login` and
 and `/backends/dotnet/api/users` collection routes allow GET and POST (WEB-003C).
 The profile route `/backends/{backend}/api/auth/me` remains GET-only. Detail
 routes `/backends/java/api/users/{id}` and `/backends/dotnet/api/users/{id}` allow
-GET and PATCH only. POST/DELETE on detail, PATCH on collection/profile, and extra
-path segments remain blocked. The detail proxy preserves the encoded opaque ID
-as one segment and blocks redirects. Login and user
-reads are same-origin: no CORS changes or
-direct browser login to backend host ports are needed. It connects to backend
+GET and PATCH only. The exact
+`/backends/java/api/ai/assistant/invocations` and
+`/backends/dotnet/api/ai/assistant/invocations` routes allow POST only and map
+to the backend `/api/ai/assistant/invocations` operation. POST/DELETE on detail,
+PATCH on collection/profile, non-POST assistant requests, and extra path
+segments remain blocked. The detail proxy preserves the encoded opaque ID as one
+segment and blocks redirects. Login, user reads and assistant calls are
+same-origin: no CORS changes or direct browser login to backend host ports are
+needed. It connects to backend
 Docker networks using existing `bin/up` discovery,
 with default container names `erbas-app-1` and `alxarafe-dotnet-app-1`. Custom
 backend project/container names require the corresponding `ERBAS_JAVA_CONTAINER`
@@ -399,6 +403,74 @@ created and no volumes were removed. Real PATCH 200/409 were not attempted.
 no new dependencies, secrets, backend-specific client behavior or magic literals.
 The README's obsolete editing limitation was generalized; detailed behavior
 and evidence live here. These checks do not claim a new backend conformance run.
+
+## ERBAS Assistant (AI-001C)
+
+The Angular application exposes a minimal synchronous **ERBAS Assistant** for the
+selected backend. It consumes the published AI-001 operation from
+erbas-contract v0.11.1 and sends exactly one closed `message` field to
+`POST /api/ai/assistant/invocations` through the same-origin proxy. The section
+is visible before login and explains that authentication is required; the form
+appears only with an authenticated, backend-bound bearer.
+
+The .NET backend implements AI-001. The Java backend may return 404 for this
+operation until it adopts the published capability; the client treats that as
+"not available on the selected backend" without naming an implementation or
+changing its request. No backend-specific branch or provider configuration exists
+in Angular. This client work does not claim that Java implements AI-001 or that
+either backend has passed full v0.11.1 conformance.
+
+Messages are sent unchanged, including whitespace and line breaks. Local
+validation requires at least one non-whitespace scalar value, rejects NUL and
+unpaired surrogates, and limits the message to 4000 Unicode scalar values.
+JavaScript `.length` is not used as the contract limit, so supplementary
+characters and the exact 4000-scalar boundary are handled correctly. Invalid
+input stays in the textarea for correction and is not sent.
+
+Only one assistant request is active at a time. Another submission, backend
+switch, Clear session, replacement login or component destruction cancels it and
+prevents a stale result from updating a newer context. Successful answers replace
+the prior answer and clear the textarea; recoverable errors preserve the typed
+message for an explicit retry. There is no automatic retry.
+
+A successful response requires HTTP 200, JSON, `Cache-Control: no-store`, no
+`WWW-Authenticate`, and the exact closed fields `invocationId`, `answer` and
+`toolsUsed`. Identifiers are nonempty opaque strings; every tool entry has exactly
+`capabilityId` and `invocationId`, and capability IDs follow the published CORE
+format. `toolsUsed` may be empty and is not displayed. The answer is rendered as
+plain interpolated text with preserved line breaks, never HTML or Markdown.
+
+Expected failures are validated as closed JSON error envelopes with
+`Cache-Control: no-store` and only the applicable Bearer challenge:
+
+| Status/code | Client behavior |
+| --- | --- |
+| 400 `invalid_request` | Report invalid assistant request; retain session and message. |
+| 401 `unauthorized` | Require Bearer challenge; discard session and all protected/assistant state. |
+| 403 `forbidden` | Require absent challenge; retain session and report missing assistant authorization. |
+| 404 | Treat the exact operation as unavailable on the selected backend; retain session. |
+| 500 `assistant_execution_failed` | Report a safe execution failure; hide internal/provider details. |
+| 503 `module_disabled` | Report that the AI module is disabled; retain session. |
+| 503 `assistant_unavailable` | Report temporary unavailability; retain session and allow explicit retry. |
+
+Malformed expected statuses, bodies or headers are invalid responses rather than
+functional states. Other statuses, transport failures and proxy errors are
+reported neutrally as unavailable. Raw response bodies, tokens, provider/model
+information, prompts, tool payloads and backend diagnostics are never displayed.
+
+The two exact Nginx assistant locations forward the bearer, request body and
+contractual response status/body/headers, reject every method except POST, block
+redirects through the shared protected proxy policy, disable buffering/caching
+and access logs, and leave unrelated `/backends/` paths closed. The synthetic
+runtime mocks verify both routes, unchanged request bodies, Authorization
+forwarding, 200 with empty or nonempty tool usage, 400/401/403/500/503, required
+headers and unrelated method/path rejection. No live provider is called.
+
+Conversation history, memory, RAG, embeddings, streaming, Markdown rendering,
+WRITE actions, approvals, capability browsing, provider/model selection, prompt
+administration, telemetry and prompt/answer persistence remain outside scope.
+The only stored value is the existing backend selection; the bearer and assistant
+answer remain in memory.
 
 ## Stop
 

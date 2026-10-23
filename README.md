@@ -8,8 +8,9 @@
 
 The shared Angular client demonstrates **one executable contract, multiple
 interchangeable implementations**. It provides backend selection, public Health,
-shared authentication and basic administrator user management with pagination,
-consuming published erbas-contract v0.4.0.
+shared authentication, basic administrator user management with pagination, and
+a minimal synchronous ERBAS Assistant. It consumes published erbas-contract
+operations, including AI-001 from v0.11.1.
 It uses standalone components, strict TypeScript, HttpClient and signals.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
@@ -26,7 +27,7 @@ Health indicates HTTP process liveness, not database readiness.
 | [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.4.0 |
 | [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of v0.4.0 |
 | [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation of v0.4.0 plus platform modules |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Shared Angular client for Health, authentication and basic user administration from either backend |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Shared Angular client for Health, authentication, basic user administration and AI-001 from either backend |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
 Java and .NET badges report each backend's authoritative `./bin/check`, including
@@ -110,6 +111,7 @@ browser -> 127.0.0.1:48082 -> Nginx :80
                               /backends/dotnet/api/users -> .NET :8080/api/users
                               /backends/{backend}/api/auth/me -> selected backend :8080/api/auth/me
                               /backends/{backend}/api/users/{id} -> selected backend :8080/api/users/{id}
+                              /backends/{backend}/api/ai/assistant/invocations -> selected backend :8080/api/ai/assistant/invocations
 ```
 
 The displayed development URLs are informational. Browser requests use relative,
@@ -132,10 +134,10 @@ ERBAS_JAVA_UPSTREAM=my-java-app-1:8080 ./bin/up
 Equivalent settings are `ERBAS_DOTNET_CONTAINER` and `ERBAS_DOTNET_UPSTREAM`.
 Upstreams must be trusted Docker DNS names (with port), reachable on the attached
 networks. These are deployment configuration, not user-provided proxy destinations.
-Only Health, `/api/auth/login`, `/api/auth/me` and users collection/detail paths
-are proxied. Each route permits only its implemented contract methods; other
-methods and extra detail path segments are blocked. See the
-[proxy details](docs/full-stack-development.md#ports-and-proxy-routes).
+Only Health, `/api/auth/login`, `/api/auth/me`, users collection/detail paths and
+the exact AI assistant invocation route are proxied. Each route permits only its
+implemented contract methods; other methods and extra path segments are blocked.
+See the [proxy details](docs/full-stack-development.md#ports-and-proxy-routes).
 All other `/backends/` paths return 404. Login preserves backend HTTP statuses, JSON
 bodies, `Cache-Control: no-store` and `WWW-Authenticate: Bearer`.
 Protected proxies forward the bearer, pagination query or encoded opaque ID,
@@ -152,13 +154,14 @@ processes. A deployment-specific network configuration would be needed for those
 - `app/src/app/auth-client.ts`: destination-neutral AUTH-001 login and response validation.
 - `app/src/app/auth-session.ts`: one in-memory session tied to its issuing backend.
 - `app/src/app/users-client.ts`: destination-neutral protected user operations with one closed User validator.
-- `app/src/app/app.*`: shared presentation, pagination and protected request cancellation.
+- `app/src/app/ai-assistant-client.ts`: destination-neutral AI-001 invocation and closed response validation.
+- `app/src/app/app.*`: shared presentation, pagination, assistant and protected request cancellation.
 - `Dockerfile`, `compose.yaml`, `docker/`: build, runtime proxy and isolated smoke fixtures.
 - `bin/`: lifecycle and validation workflows; `.github/workflows/ci.yml`: calls `bin/check`.
 
-To add an implementation, add a registry entry and an exact Nginx Health route,
-exact login and users routes, then configure its upstream/network. No HTTP client changes
-are needed. The small
+To add an implementation, add a registry entry and exact Nginx Health, login,
+users, profile and AI assistant routes, then configure its upstream/network. No
+HTTP client changes are needed. The small
 HTTP service can later be replaced with a contract-generated client without changing
 backend selection. Dependency resolution is recorded in `app/package-lock.json`;
 normal builds use `npm ci`.
@@ -197,6 +200,18 @@ Credentials are never persisted. Server-confirmed changes refresh the displayed
 user data; self-updates immediately adjust local session access. See
 [basic user administration](docs/full-stack-development.md#administrator-user-update-web-003d)
 for behavior, error handling and verification limits.
+
+The ERBAS Assistant consumes AI-001 from erbas-contract v0.11.1 through either
+selected backend. The .NET backend implements the operation; Java may report it
+unavailable until it adopts AI-001. Authentication and the backend-owned
+`ai.assistant.invoke` permission are required. The UI sends one closed `message`
+at a time, validates the closed answer/tool-usage response and shows only the
+answer text. Provider, model, prompt, tool payload and raw backend details remain
+hidden. A validated 401 clears the session; 403, 404, 500 and 503 responses keep
+it and report safe states. No conversation history, memory, RAG, streaming,
+Markdown, WRITE actions, approvals, automatic retry or prompt/answer persistence
+is implemented.
+
 Email/password changes, deletion, roles and permissions remain outside scope,
 along with refresh, registration, server logout, ERP navigation, SSR, PWA and
 production deployment.
