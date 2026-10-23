@@ -16,6 +16,10 @@ VALUES = dict(zip(demo.NAMES, ("fixture-admin@example.test", "Fixture_admin_123=
 TEXT = "".join(name + "=" + value + "\n" for name, value in VALUES.items())
 
 
+def error_body(code, **detail):
+    return {"code": code, "errors": [{"code": code, **detail}]}
+
+
 class DefaultsTests(unittest.TestCase):
     def test_literal_values_preserved_without_shell_evaluation(self):
         self.assertEqual(demo.parse_defaults(TEXT), VALUES)
@@ -57,6 +61,34 @@ class DefaultsTests(unittest.TestCase):
                 demo.resolve_defaults(path.with_name("missing"), {})
 
 
+class ContractErrorTests(unittest.TestCase):
+    def test_accepts_closed_single_detail_envelopes_and_optional_detail_fields(self):
+        for code in (*demo.PROTECTED_ERRORS.values(), demo.INVALID_CREDENTIALS, "last_admin"):
+            with self.subTest(code=code):
+                self.assertTrue(demo.error_envelope(error_body(code), code))
+        code = demo.PROTECTED_ERRORS[demo.HTTPStatus.FORBIDDEN]
+        self.assertTrue(demo.error_envelope(
+            error_body(code, resource="user", resourceId="opaque", path="/api/users"), code))
+
+    def test_rejects_reduced_missing_malformed_mismatched_and_extra_properties(self):
+        valid = error_body("forbidden")
+        cases = (
+            {"code": "forbidden"},
+            {"code": "forbidden", "errors": []},
+            {"code": "forbidden", "errors": [{}]},
+            {"code": "forbidden", "errors": [{"code": "forbidden"}, {"code": "forbidden"}]},
+            {"code": "forbidden", "errors": ["forbidden"]},
+            {"code": "forbidden", "errors": [{"code": "forbidden", "private": True}]},
+            {**valid, "extra": True},
+            {"code": "forbidden", "errors": [{"code": "unauthorized"}]},
+            {"code": "unauthorized", "errors": [{"code": "forbidden"}]},
+            {"code": "forbidden", "errors": [{"code": "forbidden", "resource": 1}]},
+        )
+        for body in cases:
+            with self.subTest(body=body):
+                self.assertFalse(demo.error_envelope(body, "forbidden"))
+
+
 class ProvisionTests(unittest.TestCase):
     def responses(self, create_status=201, user_enabled=True, user_admin=False, login_status=200):
         headers = Message()
@@ -65,7 +97,8 @@ class ProvisionTests(unittest.TestCase):
         def reply(url, payload=None, token=None, raw=False):
             if url.endswith("/api/auth/login"):
                 status = 200 if payload["email"] == VALUES[demo.NAMES[0]] else login_status
-                return status, headers, {"accessToken": "fixture-token"} if status == 200 else {"code": "invalid_credentials"}
+                return (status, headers, {"accessToken": "fixture-token"} if status == 200
+                        else error_body(demo.INVALID_CREDENTIALS))
             if url.endswith("/api/auth/me"):
                 # Calls occur admin login/me followed by user login/me.
                 is_admin = self.me_count == 0
@@ -75,9 +108,11 @@ class ProvisionTests(unittest.TestCase):
                                       "admin": True if is_admin else user_admin}
             if payload is not None:
                 self.assertEqual(payload, {"email": VALUES[demo.NAMES[2]], "password": VALUES[demo.NAMES[3]], "admin": False})
-                return create_status, headers, ({"code": "email_conflict"} if create_status == 409 else
+                return create_status, headers, (error_body(demo.PROTECTED_ERRORS[demo.HTTPStatus.CONFLICT])
+                    if create_status == 409 else
                     {"id": "opaque", "email": VALUES[demo.NAMES[2]], "enabled": True, "admin": False})
-            return 403, headers, {"code": "forbidden"}
+            return demo.HTTPStatus.FORBIDDEN, headers, error_body(
+                demo.PROTECTED_ERRORS[demo.HTTPStatus.FORBIDDEN])
         return reply
 
     def test_fresh_and_conflicting_users_are_verified_without_mutation(self):
@@ -115,14 +150,17 @@ class UserReadTests(unittest.TestCase):
             self.assertIsNone(payload, "Protected user checks must remain read-only")
             if token == demo.INVALID_BEARER:
                 challenge = Message(); challenge["Cache-Control"] = "no-store"; challenge["WWW-Authenticate"] = "Bearer"
-                return demo.HTTPStatus.UNAUTHORIZED, challenge, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.UNAUTHORIZED]}
+                code = demo.PROTECTED_ERRORS[demo.HTTPStatus.UNAUTHORIZED]
+                return demo.HTTPStatus.UNAUTHORIZED, challenge, error_body(code)
             if url.endswith(demo.CURRENT_USER_ENDPOINT):
                 body = admin if token == "fixture-admin" else regular
                 return demo.HTTPStatus.OK, headers, ({**body, "extra": True} if fault == "profile" else body)
             if token == "fixture-regular":
-                return demo.HTTPStatus.FORBIDDEN, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.FORBIDDEN]}
+                return demo.HTTPStatus.FORBIDDEN, headers, error_body(
+                    demo.PROTECTED_ERRORS[demo.HTTPStatus.FORBIDDEN])
             if url.endswith(demo.UNKNOWN_USER_ID):
-                return demo.HTTPStatus.NOT_FOUND, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND]}
+                return demo.HTTPStatus.NOT_FOUND, headers, error_body(
+                    demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND])
             if "?offset=" in url:
                 body = {"items": [admin], "offset": 0, "limit": demo.USERS_PAGE_SIZE, "total": 1,
                         "order": [{"field": "id", "direction": "asc"}]}
@@ -157,10 +195,10 @@ class UserCreateTests(unittest.TestCase):
             status = demo.HTTPStatus.CONFLICT if token == "fixture-admin" else demo.HTTPStatus.FORBIDDEN
             code = demo.PROTECTED_ERRORS[status]
             if fault == "created": status = demo.HTTPStatus.CREATED
-            if fault == "extra": return status, headers, {"code": code, "extra": True}
+            if fault == "extra": return status, headers, {**error_body(code), "extra": True}
             if fault == "cache": headers.replace_header("Cache-Control", "public")
             if fault == "challenge": headers[demo.USER_CHALLENGE_HEADER] = "Bearer"
-            return status, headers, {"code": code}
+            return status, headers, error_body(code)
         return reply
 
     def test_creation_probe_uses_existing_email_only_and_never_accepts_201(self):
@@ -187,12 +225,13 @@ class UserUpdateTests(unittest.TestCase):
                 return demo.HTTPStatus.OK, headers, {"accessToken": "admin-fixture" if payload["email"] == VALUES[demo.NAMES[0]] else "regular-fixture"}
             if method is None:
                 self.assertIsNone(payload)
-                return demo.HTTPStatus.NOT_FOUND, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND]}
+                return demo.HTTPStatus.NOT_FOUND, headers, error_body(
+                    demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND])
             self.assertEqual(method, demo.PATCH_METHOD)
             self.assertTrue(url.endswith(demo.UNKNOWN_USER_ID))
             self.assertEqual(payload, {"enabled": False})
             status = demo.HTTPStatus.NOT_FOUND if token == "admin-fixture" else demo.HTTPStatus.FORBIDDEN
-            return status, headers, {"code": demo.PROTECTED_ERRORS[status]}
+            return status, headers, error_body(demo.PROTECTED_ERRORS[status])
         with patch.object(demo, "request", side_effect=reply) as request, patch("builtins.print"):
             demo.verify_update("Fixture", "http://fixture", VALUES)
         self.assertEqual(request.call_count, 5)
@@ -204,8 +243,9 @@ class UserUpdateTests(unittest.TestCase):
                 if url.endswith("/api/auth/login"):
                     return demo.HTTPStatus.OK, headers, {"accessToken": "fixture"}
                 if method is None:
-                    return demo.HTTPStatus.NOT_FOUND, headers, {"code": demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND]}
-                return status, headers, {"code": "last_admin"}
+                    return demo.HTTPStatus.NOT_FOUND, headers, error_body(
+                        demo.PROTECTED_ERRORS[demo.HTTPStatus.NOT_FOUND])
+                return status, headers, error_body("last_admin")
             with patch.object(demo, "request", side_effect=reply), self.assertRaises(demo.DemoError):
                 demo.verify_update("Fixture", "http://fixture", VALUES)
 

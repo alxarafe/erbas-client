@@ -21,7 +21,13 @@ UNKNOWN_USER_ID = "web-003b-unknown-user"
 INVALID_BEARER = "web-003b-invalid-bearer"
 PROTECTED_ERRORS = {HTTPStatus.UNAUTHORIZED: "unauthorized", HTTPStatus.FORBIDDEN: "forbidden",
                     HTTPStatus.NOT_FOUND: "user_not_found", HTTPStatus.CONFLICT: "email_conflict"}
+INVALID_CREDENTIALS = "invalid_credentials"
 USER_CHALLENGE_HEADER = "WWW-Authenticate"
+ERROR_CODE_FIELD = "code"
+ERRORS_FIELD = "errors"
+ERROR_DETAIL_OPTIONAL_FIELDS = frozenset(("resource", "resourceId", "path"))
+ERROR_DETAIL_FIELDS = ERROR_DETAIL_OPTIONAL_FIELDS | {ERROR_CODE_FIELD}
+ERROR_FIELDS = frozenset((ERROR_CODE_FIELD, ERRORS_FIELD))
 
 class DemoError(Exception):
     pass
@@ -106,6 +112,20 @@ def require(condition, message):
         raise DemoError(message)
 
 
+def error_envelope(body, code):
+    if (not isinstance(body, dict) or set(body) != ERROR_FIELDS
+            or body[ERROR_CODE_FIELD] != code):
+        return False
+    errors = body[ERRORS_FIELD]
+    if not isinstance(errors, list) or len(errors) != 1:
+        return False
+    detail = errors[0]
+    return (isinstance(detail, dict) and ERROR_CODE_FIELD in detail
+            and set(detail) <= ERROR_DETAIL_FIELDS
+            and detail[ERROR_CODE_FIELD] == code
+            and all(isinstance(value, str) for value in detail.values()))
+
+
 def no_store(headers):
     require("no-store" in [part.strip().lower() for part in headers.get("Cache-Control", "").split(",")],
             "Expected contractual Cache-Control: no-store.")
@@ -151,7 +171,8 @@ def verify_backend(label, base, values, provision=False):
         status, headers, body = request(base + "/api/users", {
             "email": values[NAMES[2]], "password": values[NAMES[3]], "admin": False}, admin_token)
         no_store(headers)
-        require(status == 201 or (status == 409 and body == {"code": PROTECTED_ERRORS[HTTPStatus.CONFLICT]}),
+        require(status == 201 or (status == 409 and error_envelope(
+                    body, PROTECTED_ERRORS[HTTPStatus.CONFLICT])),
                 f"{label}: regular-user creation failed; response details withheld.")
         if status == 201:
             require(isinstance(body, dict) and set(body) == {"id", "email", "enabled", "admin"}
@@ -163,7 +184,9 @@ def verify_backend(label, base, values, provision=False):
     except Exception:
         raise DemoError(identity_error(label, False)) from None
     status, headers, body = request(base + "/api/users", token=user_token)
-    require(status == 403 and body == {"code": "forbidden"}, f"{label}: regular-user admin denial failed.")
+    require(status == HTTPStatus.FORBIDDEN
+            and error_envelope(body, PROTECTED_ERRORS[HTTPStatus.FORBIDDEN]),
+            f"{label}: regular-user admin denial failed.")
     no_store(headers)
     require(headers.get(USER_CHALLENGE_HEADER) is None, f"{label}: unexpected forbidden challenge.")
     print(f"OK: {label} administrator and regular-user login/me; regular-user admin denial.")
@@ -212,7 +235,7 @@ def verify_reads(label, base, values):
     for endpoint, token, expected in cases:
         status, headers, body = request(base + endpoint, token=token)
         no_store(headers)
-        require(status == expected and body == {"code": PROTECTED_ERRORS[expected]},
+        require(status == expected and error_envelope(body, PROTECTED_ERRORS[expected]),
                 f"{label}: protected read error failed.")
         require(headers.get(USER_CHALLENGE_HEADER) == ("Bearer" if expected == HTTPStatus.UNAUTHORIZED else None),
                 f"{label}: unexpected protected read challenge.")
@@ -229,7 +252,7 @@ def verify_creation(label, base, values):
             (regular_token, HTTPStatus.FORBIDDEN, PROTECTED_ERRORS[HTTPStatus.FORBIDDEN])):
         status, headers, body = request(base + USERS_ENDPOINT, payload, token=token)
         no_store(headers)
-        require(status == expected and body == {"code": code}
+        require(status == expected and error_envelope(body, code)
                 and headers.get(USER_CHALLENGE_HEADER) is None,
                 f"{label}: non-mutating creation check failed; response details withheld.")
     print(f"OK: {label} POST users: existing-email 409 and regular-user 403 (no accounts created).")
@@ -243,13 +266,14 @@ def verify_update(label, base, values):
     path = USERS_ENDPOINT + "/" + quote(UNKNOWN_USER_ID, safe="")
     status, headers, body = request(base + path, token=admin_token)
     no_store(headers)
-    require(status == HTTPStatus.NOT_FOUND and body == {"code": PROTECTED_ERRORS[HTTPStatus.NOT_FOUND]}
+    require(status == HTTPStatus.NOT_FOUND
+            and error_envelope(body, PROTECTED_ERRORS[HTTPStatus.NOT_FOUND])
             and headers.get(USER_CHALLENGE_HEADER) is None,
             f"{label}: PATCH probe target is not verified absent; no PATCH sent.")
     for token, expected in ((regular_token, HTTPStatus.FORBIDDEN), (admin_token, HTTPStatus.NOT_FOUND)):
         status, headers, body = request(base + path, {"enabled": False}, token=token, method=PATCH_METHOD)
         no_store(headers)
-        require(status == expected and body == {"code": PROTECTED_ERRORS[expected]}
+        require(status == expected and error_envelope(body, PROTECTED_ERRORS[expected])
                 and headers.get(USER_CHALLENGE_HEADER) is None,
                 f"{label}: non-mutating PATCH check failed; response details withheld.")
     print(f"OK: {label} PATCH detail: regular-user 403 and absent-target 404 (no persistent mutations).")
@@ -279,8 +303,10 @@ def check(java, dotnet, client, values):
             login(proxy, values[email_key], values[password_key])
             status, headers, body = request(proxy + "/api/auth/login", {
                 "email": values[email_key], "password": values[password_key] + "-DEMO-001-incorrect"})
-            require(status == 401 and body == {"code": "invalid_credentials"}
-                    and headers.get(USER_CHALLENGE_HEADER) == "Bearer", f"{label}: incorrect-password proxy check failed.")
+            require(status == HTTPStatus.UNAUTHORIZED
+                    and error_envelope(body, INVALID_CREDENTIALS)
+                    and headers.get(USER_CHALLENGE_HEADER) == "Bearer",
+                    f"{label}: incorrect-password proxy check failed.")
         print(f"OK: Client → {label} administrator/regular login and incorrect-password behavior.")
     print("DEMO CHECK PASS: both identities, direct/proxied Health, user reads and non-mutating creation/update checks, login proxies and client runtime defaults.")
 
