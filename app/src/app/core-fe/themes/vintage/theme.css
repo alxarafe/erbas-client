@@ -1,0 +1,12 @@
+.theme-vintage {
+  --theme-background: #f4ecd8;
+  --theme-surface: #fff9f0;
+  --theme-text: #4e342e;
+  --theme-muted: #5d4037;
+  --theme-border: #8d6e63;
+  --theme-accent: #5d4037;
+  --theme-link: #5d4037;
+  --theme-code: #e8dfc4;
+  --theme-focus: #5d4037;
+  font-family: Georgia, 'Times New Roman', serif;
+}

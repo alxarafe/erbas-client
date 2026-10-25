@@ -1,0 +1,12 @@
+<label [for]="context().id">{{ context().label }}</label>
+<select
+  #control
+  [id]="context().id"
+  [disabled]="context().disabled || context().readOnly"
+  (change)="select(control.value)"
+>
+  <option [value]="unset" [selected]="context().value === null">Not set</option>
+  @for (choice of context().choices ?? []; track choice) {
+    <option [value]="choice" [selected]="choice === text()">{{ choice }}</option>
+  }
+</select>

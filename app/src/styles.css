@@ -1,3 +1,9 @@
+@import './app/core-fe/themes/default/theme.css';
+@import './app/core-fe/themes/alternative/theme.css';
+@import './app/core-fe/themes/cyberpunk/theme.css';
+@import './app/core-fe/themes/vintage/theme.css';
+@import './app/core-fe/themes/high-contrast/theme.css';
+
 html {
   color-scheme: light;
 }

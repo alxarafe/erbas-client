@@ -1,0 +1,30 @@
+.theme-high-contrast {
+  --theme-background: #000;
+  --theme-surface: #000;
+  --theme-text: #ffff00;
+  --theme-muted: #ffff00;
+  --theme-border: #fff;
+  --theme-accent: #ffff00;
+  --theme-on-accent: #000;
+  --theme-link: #40e0d0;
+  --theme-code: #000;
+  --theme-focus: #ff00ff;
+  --theme-online: #fff;
+  --theme-error: #fff;
+  --theme-checking: #fff;
+}
+.theme-high-contrast a {
+  text-decoration: underline;
+  font-weight: bold;
+}
+.theme-high-contrast .hc-panel {
+  border: 3px solid var(--theme-border);
+  padding: 12px;
+}
+.theme-high-contrast .hc-content {
+  font-size: 1.1em;
+}
+.theme-high-contrast section {
+  border-radius: 0;
+  box-shadow: none;
+}

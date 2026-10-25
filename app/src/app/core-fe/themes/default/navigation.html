@@ -1,0 +1,9 @@
+<nav aria-label="Application sections">
+  <ul>
+    @for (item of items(); track item.id) {
+      <li>
+        <a [href]="item.href">{{ item.label }}</a>
+      </li>
+    }
+  </ul>
+</nav>

@@ -1,4 +1,8 @@
 import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ThemeShellOutlet } from './core-fe/shell/theme-shell-outlet';
+import { provideThemeRuntime } from './core-fe/theme/theme-runtime';
+import { BUILTIN_THEMES } from './core-fe/themes/themes';
+import { NavigationEntry } from './core-fe/shell/shell-content';
 import { DatePipe } from '@angular/common';
 import { HttpClient, HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
 import { Subscription, finalize } from 'rxjs';
@@ -47,11 +51,18 @@ type LoginState =
 
 @Component({
   selector: 'app-root',
-  imports: [DatePipe],
+  imports: [DatePipe, ThemeShellOutlet],
+  providers: [provideThemeRuntime(BUILTIN_THEMES)],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
+  readonly navigation: readonly NavigationEntry[] = [
+    { id: 'backend', label: 'Backend', href: '#backend-heading' },
+    { id: 'authentication', label: 'Authentication', href: '#auth-heading' },
+    { id: 'assistant', label: 'Assistant', href: '#assistant-heading' },
+    { id: 'users', label: 'Users', href: '#users-heading' },
+  ];
   readonly backends = BACKENDS;
   readonly demoDefaults = signal<DemoDefaults | null>(null);
   readonly selection = inject(BackendSelection);
