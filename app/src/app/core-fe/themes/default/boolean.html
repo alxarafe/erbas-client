@@ -1,0 +1,10 @@
+<label [for]="context().id">{{ context().label }}</label>
+<input
+  #control
+  type="checkbox"
+  [id]="context().id"
+  [checked]="context().value === true"
+  [indeterminate]="context().value === null"
+  [disabled]="context().disabled || context().readOnly"
+  (change)="update(control.checked)"
+/>

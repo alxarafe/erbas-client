@@ -1,0 +1,76 @@
+core-fe-shell-outlet {
+  display: block;
+  min-height: 100vh;
+  --theme-background: #f3f6fa;
+  --theme-surface: #fff;
+  --theme-text: #172c46;
+  --theme-muted: #52647b;
+  --theme-border: #dce3ed;
+  --theme-accent: #173e70;
+  --theme-on-accent: #fff;
+  --theme-link: #164e9a;
+  --theme-code: #edf2f8;
+  --theme-focus: #bb7b00;
+  --theme-online: #17613c;
+  --theme-error: #a12829;
+  --theme-checking: #805300;
+  background: var(--theme-background);
+  color: var(--theme-text);
+}
+.shell {
+  max-width: 728px;
+  padding: 48px 24px;
+  margin: 0 auto;
+}
+.shell-heading {
+  margin-bottom: 24px;
+}
+.shell-navigation {
+  margin-bottom: 24px;
+}
+.shell-navigation ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+}
+.shell-navigation a {
+  color: var(--theme-link);
+}
+.shell footer {
+  margin-top: 24px;
+  color: var(--theme-muted);
+}
+.shell-floating {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+}
+core-fe-shell-slot:empty {
+  display: none;
+}
+core-fe-field-renderer {
+  display: block;
+}
+core-fe-field-renderer label {
+  display: block;
+}
+core-fe-field-renderer input:not([type='checkbox']),
+core-fe-field-renderer textarea,
+core-fe-field-renderer select {
+  font: inherit;
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  padding: 8px;
+}
+.shell :focus-visible {
+  outline: 3px solid var(--theme-focus);
+  outline-offset: 3px;
+}
+@media (max-width: 480px) {
+  .shell {
+    padding: 24px 16px;
+  }
+}

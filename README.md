@@ -12,6 +12,8 @@ shared authentication, basic administrator user management with pagination, and
 a minimal synchronous ERBAS Assistant. It consumes published erbas-contract
 operations, including AI-001 from v0.11.1.
 It uses standalone components, strict TypeScript, HttpClient and signals.
+The Core FE provides compiled sparse themes and typed shell extension slots; see
+[theme architecture](docs/core-fe-theme-runtime.md). Resource-driven CRUD remains future work.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.
@@ -155,7 +157,8 @@ processes. A deployment-specific network configuration would be needed for those
 - `app/src/app/auth-session.ts`: one in-memory session tied to its issuing backend.
 - `app/src/app/users-client.ts`: destination-neutral protected user operations with one closed User validator.
 - `app/src/app/ai-assistant-client.ts`: destination-neutral AI-001 invocation and closed response validation.
-- `app/src/app/app.*`: shared presentation, pagination, assistant and protected request cancellation.
+- `app/src/app/app.*`: shared feature state/presentation and protected request cancellation.
+- `app/src/app/core-fe/`: normalized field types, compiled theme fallback, shell and typed slots.
 - `Dockerfile`, `compose.yaml`, `docker/`: build, runtime proxy and isolated smoke fixtures.
 - `bin/`: lifecycle and validation workflows; `.github/workflows/ci.yml`: calls `bin/check`.
 

@@ -1,0 +1,70 @@
+.theme-cyberpunk {
+  --cyber-rail-width: 96px;
+  --theme-background: #15142b;
+  --theme-surface: #242139;
+  --theme-text: #f0edf8;
+  --theme-muted: #bdb5d3;
+  --theme-border: #645b7b;
+  --theme-accent: #dbdb61;
+  --theme-on-accent: #15142b;
+  --theme-link: #b9e9ef;
+  --theme-code: #39324c;
+  --theme-focus: #f3ed6e;
+  --theme-online: #99e0b7;
+  --theme-error: #ffb4b4;
+  --theme-checking: #f3df91;
+}
+.shell-cyberpunk {
+  max-width: 1000px;
+  padding-right: calc(var(--cyber-rail-width) + 24px);
+}
+.cyber-workspace {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 4fr);
+  gap: 24px;
+}
+.cyber-tools {
+  width: var(--cyber-rail-width);
+  position: fixed;
+  right: 0;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--theme-surface);
+}
+.cyber-tools:not(:has(core-fe-shell-slot:not(:empty))) {
+  display: none;
+}
+.shell-cyberpunk .shell-navigation ul {
+  display: block;
+}
+.shell-cyberpunk .shell-navigation li {
+  margin-bottom: 12px;
+}
+@media (max-width: 680px) {
+  .cyber-tools {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+.cyber-panel {
+  border-left: 2px solid var(--theme-accent);
+  padding-left: 12px;
+}
+@media (max-width: 680px) {
+  .cyber-workspace {
+    display: block;
+  }
+  .shell-cyberpunk {
+    padding-right: 16px;
+  }
+  .shell-cyberpunk:has(.cyber-tools core-fe-shell-slot:not(:empty)) {
+    padding-bottom: 96px;
+  }
+}

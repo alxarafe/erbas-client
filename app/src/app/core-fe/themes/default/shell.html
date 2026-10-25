@@ -1,0 +1,25 @@
+<div class="shell shell-default">
+  <header class="shell-heading">
+    <core-fe-shell-slot [slot]="slots.TopbarStart" /><ng-content
+      select="[shell-heading]"
+    /><core-fe-shell-slot [slot]="slots.TopbarActions" />
+  </header>
+  <div class="shell-navigation">
+    <core-fe-shell-slot [slot]="slots.NavigationBefore" /><core-fe-navigation-outlet
+      [items]="navigation()"
+    /><core-fe-shell-slot [slot]="slots.NavigationAfter" />
+  </div>
+  <main>
+    <core-fe-shell-slot [slot]="slots.ContentBefore" /><core-fe-shell-slot
+      [slot]="slots.ContextualActions"
+    />
+    <core-fe-panel-outlet><ng-content select="[shell-content]" /></core-fe-panel-outlet
+    ><core-fe-shell-slot [slot]="slots.ContentAfter" />
+  </main>
+  <aside class="shell-floating" aria-label="Optional tools">
+    <core-fe-shell-slot [slot]="slots.FloatingActions" />
+  </aside>
+  <footer>
+    <ng-content select="[shell-footer]" /><core-fe-shell-slot [slot]="slots.Footer" />
+  </footer>
+</div>
