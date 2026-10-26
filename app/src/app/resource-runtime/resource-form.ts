@@ -1,8 +1,13 @@
+import { NgTemplateOutlet } from '@angular/common';
+import { ResourceLayout } from './resource-layout';
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { Subscription, switchMap, map } from 'rxjs';
 import { FieldRendererOutlet } from '../core-fe/field-types/field-renderer-outlet';
 import { FieldValue } from '../core-fe/field-types/renderer-context';
 import {
+  Action,
+  Availability,
+  Presentation,
   Field,
   Metadata,
   Relation,
@@ -13,7 +18,7 @@ import {
   RESOURCE_PROTOCOL as P,
 } from './models';
 import { RuntimeClient, RuntimeFailure, failureMessage, translateFailure } from './runtime-client';
-import { editable, fieldValue, same, scalarInput } from './fields';
+import { editable, fieldValue, same, scalarInput, visibleField } from './fields';
 import { parseExact, stringifyExact } from './exact-json';
 interface Lookup {
   rows: Row[];
@@ -23,11 +28,18 @@ interface Lookup {
 }
 @Component({
   selector: 'app-resource-form',
-  imports: [FieldRendererOutlet],
+  imports: [FieldRendererOutlet, ResourceLayout],
   templateUrl: './resource-form.html',
 })
 export class ResourceForm {
+  readonly presentation = input<Presentation>();
+  readonly readOnly = input(false);
+  readonly actions = input<Action[]>([]);
+  readonly availability = input<Availability[]>([]);
+  readonly actionSelected = output<Action>();
+  readonly idPrefix = input('resource');
   readonly fields = input.required<Field[]>();
+  readonly renderedFields = computed(() => this.fields().filter(visibleField));
   readonly relations = input<Relation[]>([]);
   readonly record = input<Row | null>(null);
   readonly busy = input(false);
@@ -65,7 +77,7 @@ export class ResourceForm {
   constructor() {
     effect((onCleanup) => {
       const record = this.record();
-      const fields = this.fields();
+      const fields = this.renderedFields();
       this.values.set(
         Object.fromEntries(
           fields.map((f) => [
@@ -79,7 +91,10 @@ export class ResourceForm {
       this.lookups.set({});
       const subscriptions = new Subscription();
       this.lookupRequests = subscriptions;
-      for (const relation of this.relations()) subscriptions.add(this.loadLookup(relation, 0));
+      if (!this.readOnly())
+        for (const relation of this.relations())
+          if (fields.some((field) => field.name === relation.localField && !field.readOnly))
+            subscriptions.add(this.loadLookup(relation, 0));
       onCleanup(() => subscriptions.unsubscribe());
     });
   }
@@ -117,9 +132,10 @@ export class ResourceForm {
   }
   submit(event: Event) {
     event.preventDefault();
+    if (this.readOnly()) return;
     const payload: Row = {};
     try {
-      for (const field of this.fields()) {
+      for (const field of this.renderedFields()) {
         if (!editable(field, this.record() !== null)) continue;
         const dirty = this.changed().has(field.name);
         if (!dirty) {

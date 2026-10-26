@@ -46,6 +46,14 @@ export function scalarInput(field: Parameter, value: FieldValue): Scalar {
   // Patterns, exact numeric constraints and business rules remain server-authoritative.
   return value;
 }
+export function visibleField(field: Field): boolean {
+  return !field.annotations.some(
+    (annotation) =>
+      annotation.vocabulary === 'UI' &&
+      ['Hidden', 'FormExcluded'].includes(annotation.term) &&
+      annotation.value === true,
+  );
+}
 export function orderedFields(meta: Metadata): Field[] {
   const names =
     meta.presentation?.form.tabs.flatMap((tab) =>
@@ -54,15 +62,7 @@ export function orderedFields(meta: Metadata): Field[] {
   return [...new Set([...names, ...meta.fields.map((field) => field.name)])]
     .map((name) => meta.fields.find((field) => field.name === name)!)
     .filter(Boolean)
-    .filter(
-      (field) =>
-        !field.annotations.some(
-          (a) =>
-            a.vocabulary === 'UI' &&
-            ['Hidden', 'FormExcluded'].includes(a.term) &&
-            a.value === true,
-        ),
-    );
+    .filter(visibleField);
 }
 export function same(a: unknown, b: unknown): boolean {
   return stringifyExact(a) === stringifyExact(b);

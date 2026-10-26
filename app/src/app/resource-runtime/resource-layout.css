@@ -1,0 +1,28 @@
+[role='tablist'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block: 1rem;
+}
+[role='tab'][aria-selected='true'] {
+  font-weight: bold;
+  border-bottom: 3px solid currentColor;
+}
+[hidden] {
+  display: none !important;
+}
+fieldset {
+  margin-block: 1rem;
+  padding: 1rem;
+  min-width: 0;
+}
+.layout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+summary {
+  cursor: pointer;
+  padding-block: 0.75rem;
+}

@@ -137,8 +137,10 @@ describe('Compiled generic screens and menu', () => {
     expect(button.disabled).toBe(false);
     button.click();
     await fixture.whenStable();
-    const form = fixture.debugElement.query(By.directive(ResourceForm))
-      .componentInstance as ResourceForm;
+    const form = fixture.debugElement
+      .queryAll(By.directive(ResourceForm))
+      .map((node) => node.componentInstance as ResourceForm)
+      .find((form) => form.fields().some((field) => field.name === 'reason'))!;
     form.change('reason', 'Completed');
     form.submit(new Event('submit'));
     const execute = http.expectOne(base + P.actions + '/' + R + '/finish/execute');
@@ -342,6 +344,8 @@ describe('Compiled generic screens and menu', () => {
             sections: [
               {
                 id: 'general',
+                collapsible: false,
+                initiallyCollapsed: false,
                 actions: [],
                 groups: [{ id: 'identity', fields: ['name', 'code'] }],
               },

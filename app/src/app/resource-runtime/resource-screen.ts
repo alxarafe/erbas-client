@@ -57,6 +57,12 @@ export class ResourceScreen {
   readonly failureMessage = failureMessage;
   readonly orderedFields = orderedFields;
   readonly formFields = computed(() => (this.meta() ? orderedFields(this.meta()!) : []));
+  readonly presentedActions = computed(() =>
+    this.selected()
+      ? (this.meta()?.actions.filter((action) => action.scope === 'ENTITY' && action.authorized) ??
+        [])
+      : [],
+  );
   readonly parameterFields = computed(() => (this.action() ? this.parameters(this.action()!) : []));
   private requests = new Subscription();
   private loadRequest?: Subscription;
@@ -97,6 +103,23 @@ export class ResourceScreen {
       this.requests.unsubscribe();
       this.loadRequest?.unsubscribe();
     });
+  }
+  refreshMetadata() {
+    if (this.editing() || this.action()) return;
+    this.error.set(null);
+    this.busy.set(true);
+    this.requests.add(
+      this.client.metadata(this.resource(), true).subscribe({
+        next: (meta) => {
+          this.meta.set(meta);
+          this.busy.set(false);
+          if (!allowed(meta, 'list')) this.page.set(null);
+          else this.load();
+          if (this.selected()) this.refreshAvailability();
+        },
+        error: (error) => this.failed(error),
+      }),
+    );
   }
   hasSearch(meta: Metadata) {
     return meta.fields.some((field) => field.capabilities.searchable);

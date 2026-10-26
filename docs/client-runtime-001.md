@@ -181,6 +181,12 @@ Final verification (2026-10-26):
   it without unrelated dependency updates. Contract and backend working trees remain
   unchanged. v0.13.0 is still unpublished; no production/release pin was changed.
 
+## Presentation follow-up
+
+[CLIENT-RUNTIME-002](client-runtime-002.md) adds the contracted static hierarchy and
+effective-capability rendering. The limits below record the original CLIENT-RUNTIME-001
+scope; the linked follow-up documents the presentation extension and its verification.
+
 ## Limits
 
 The contract proved sufficient without changes. Dynamic Assets field composition,

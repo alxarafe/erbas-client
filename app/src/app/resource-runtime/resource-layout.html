@@ -1,0 +1,101 @@
+<ng-template #actionButtons let-actions>
+  @if (actions.length) {
+    <div class="layout-actions">
+      @for (action of actions; track action.name) {
+        <button
+          type="button"
+          [attr.data-action]="action.name"
+          [disabled]="busy() || !available(action)"
+          (click)="actionSelected.emit(action)"
+        >
+          {{ label(action) }}
+        </button>
+      }
+    </div>
+  }
+</ng-template>
+<ng-container
+  [ngTemplateOutlet]="actionButtons"
+  [ngTemplateOutletContext]="{ $implicit: layout().actions }"
+/>
+@if (layout().tabs.length) {
+  <div role="tablist" aria-label="Resource details">
+    @for (tab of layout().tabs; track tab.id; let index = $index) {
+      <button
+        type="button"
+        role="tab"
+        [id]="'layout-tab-' + tab.id"
+        [attr.aria-controls]="'layout-panel-' + tab.id"
+        [attr.aria-selected]="activeTab() === tab.id"
+        [tabIndex]="activeTab() === tab.id ? 0 : -1"
+        (keydown)="moveTab($event, index)"
+        (click)="chosenTab.set(tab.id)"
+      >
+        {{ tab.label ?? tab.id }}
+      </button>
+    }
+  </div>
+  @for (tab of layout().tabs; track tab.id) {
+    <section
+      role="tabpanel"
+      [id]="'layout-panel-' + tab.id"
+      [attr.aria-labelledby]="'layout-tab-' + tab.id"
+      [hidden]="activeTab() !== tab.id"
+      [attr.data-tab]="tab.id"
+    >
+      <ng-container
+        [ngTemplateOutlet]="actionButtons"
+        [ngTemplateOutletContext]="{ $implicit: tab.actions }"
+      />
+      @for (section of tab.sections; track section.id) {
+        <ng-template #sectionBody>
+          <ng-container
+            [ngTemplateOutlet]="actionButtons"
+            [ngTemplateOutletContext]="{ $implicit: section.actions }"
+          />
+          @for (group of section.groups; track group.id) {
+            <fieldset [attr.data-group]="group.id">
+              @if (group.label) {
+                <legend>{{ group.label }}</legend>
+              }
+              @for (field of group.fields; track field.name) {
+                <ng-container
+                  [ngTemplateOutlet]="fieldTemplate()"
+                  [ngTemplateOutletContext]="{ $implicit: field }"
+                />
+              }
+            </fieldset>
+          }
+        </ng-template>
+        @if (section.collapsible) {
+          <details [attr.data-section]="section.id" [open]="!section.initiallyCollapsed">
+            <summary>{{ section.label ?? section.id }}</summary>
+            <ng-container [ngTemplateOutlet]="sectionBody" />
+          </details>
+        } @else {
+          <section [attr.data-section]="section.id">
+            @if (section.label) {
+              <h4>{{ section.label }}</h4>
+            }
+            <ng-container [ngTemplateOutlet]="sectionBody" />
+          </section>
+        }
+      }
+    </section>
+  }
+}
+@if (layout().fallback.length) {
+  <section data-layout-fallback>
+    <h4>{{ presentation() ? 'Other fields' : 'Details' }}</h4>
+    @for (field of layout().fallback; track field.name) {
+      <ng-container
+        [ngTemplateOutlet]="fieldTemplate()"
+        [ngTemplateOutletContext]="{ $implicit: field }"
+      />
+    }
+  </section>
+}
+<ng-container
+  [ngTemplateOutlet]="actionButtons"
+  [ngTemplateOutletContext]="{ $implicit: layout().unplacedActions }"
+/>

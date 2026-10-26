@@ -4,6 +4,13 @@
   }
   @if (meta(); as meta) {
     <h2>{{ label(meta) }}</h2>
+    <button
+      type="button"
+      (click)="refreshMetadata()"
+      [disabled]="busy() || editing() || action() !== null"
+    >
+      Refresh metadata
+    </button>
     <button type="button" (click)="load()" [disabled]="busy()">Refresh records</button>
     @if (allowed(meta, 'create')) {
       <button type="button" (click)="create()">Create</button>
@@ -132,6 +139,10 @@
       <h3>{{ selected() ? 'Edit' : 'Create' }}</h3>
       <app-resource-form
         [fields]="formFields()"
+        [presentation]="meta.presentation"
+        [actions]="presentedActions()"
+        [availability]="availability()"
+        (actionSelected)="this.action.set($event)"
         [relations]="meta.relations"
         [record]="selected()"
         [busy]="busy()"
@@ -141,28 +152,23 @@
       />
     }
     @if (viewing() && selected(); as row) {
-      <dl>
-        @for (field of columns(meta); track field.name) {
-          <dt>{{ label(field) }}</dt>
-          <dd>{{ display(row[field.name]) }}</dd>
-        }
-      </dl>
-      @for (action of meta.actions; track action.name) {
-        @if (action.scope === 'ENTITY' && action.authorized) {
-          <button
-            type="button"
-            [disabled]="busy() || !available(action.name)"
-            (click)="this.action.set(action)"
-          >
-            {{ label(action) }}
-          </button>
-        }
-      }
+      <app-resource-form
+        [fields]="formFields()"
+        [presentation]="meta.presentation"
+        [record]="row"
+        [readOnly]="true"
+        [actions]="presentedActions()"
+        [availability]="availability()"
+        [busy]="busy()"
+        (actionSelected)="this.action.set($event)"
+        (cancelled)="close()"
+      />
     }
     @if (action(); as action) {
       <h3>{{ label(action) }}</h3>
       <app-resource-form
         [fields]="parameterFields()"
+        [idPrefix]="'action-' + action.name"
         [busy]="busy()"
         [fieldErrors]="fieldErrors()"
         (submitted)="execute($event)"

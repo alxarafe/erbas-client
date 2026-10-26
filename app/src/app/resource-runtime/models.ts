@@ -59,6 +59,23 @@ export interface Group {
   label?: string;
   fields: string[];
 }
+export interface FormSection {
+  id: string;
+  label?: string;
+  collapsible: boolean;
+  initiallyCollapsed: boolean;
+  actions: string[];
+  groups: Group[];
+}
+export interface FormTab {
+  id: string;
+  label?: string;
+  actions: string[];
+  sections: FormSection[];
+}
+export interface Presentation {
+  form: { behavior: { unsavedChanges: string }; actions: string[]; tabs: FormTab[] };
+}
 export interface Metadata {
   id: string;
   version: string;
@@ -71,18 +88,7 @@ export interface Metadata {
   relations: Relation[];
   actions: Action[];
   annotations: Annotation[];
-  presentation?: {
-    form: {
-      behavior: { unsavedChanges: string };
-      actions: string[];
-      tabs: {
-        id: string;
-        label?: string;
-        actions: string[];
-        sections: { id: string; label?: string; actions: string[]; groups: Group[] }[];
-      }[];
-    };
-  };
+  presentation?: Presentation;
 }
 export interface Page {
   items: Row[];
@@ -136,6 +142,37 @@ export function row(value: unknown): Row {
     throw new Error('Invalid resource record');
   return value as Row;
 }
+function validPresentation(value: unknown): boolean {
+  if (!object(value) || !object(value['form'])) return false;
+  const form = value['form'];
+  const strings = (items: unknown) =>
+    Array.isArray(items) && items.every((item) => typeof item === 'string');
+  const node = (value: unknown): value is Record<string, unknown> =>
+    object(value) &&
+    typeof value['id'] === 'string' &&
+    (value['label'] === undefined || typeof value['label'] === 'string');
+  return (
+    object(form['behavior']) &&
+    ['CONFIRM_DISCARD', 'ALLOW_DISCARD'].includes(String(form['behavior']['unsavedChanges'])) &&
+    strings(form['actions']) &&
+    Array.isArray(form['tabs']) &&
+    form['tabs'].every(
+      (tab) =>
+        node(tab) &&
+        strings(tab['actions']) &&
+        Array.isArray(tab['sections']) &&
+        tab['sections'].every(
+          (section) =>
+            node(section) &&
+            typeof section['collapsible'] === 'boolean' &&
+            typeof section['initiallyCollapsed'] === 'boolean' &&
+            strings(section['actions']) &&
+            Array.isArray(section['groups']) &&
+            section['groups'].every((group) => node(group) && strings(group['fields'])),
+        ),
+    )
+  );
+}
 export function metadata(value: unknown, resource: string): Metadata {
   if (
     !object(value) ||
@@ -174,6 +211,8 @@ export function metadata(value: unknown, resource: string): Metadata {
       !object(field['constraints'])
     )
       throw new Error('Invalid resource field');
+  if (value['presentation'] !== undefined && !validPresentation(value['presentation']))
+    throw new Error('Invalid resource presentation');
   return value as unknown as Metadata;
 }
 export function page(value: unknown): Page {

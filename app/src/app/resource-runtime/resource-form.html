@@ -1,13 +1,13 @@
 <form (submit)="submit($event)" novalidate>
-  @for (field of fields(); track field.name) {
+  <ng-template #fieldControl let-field>
     <div class="resource-field">
-      @if (relation(field); as rel) {
-        <label [for]="'resource-' + field.name">{{ label(field) }}</label>
+      @if (!readOnly() && !field.readOnly && relation(field); as rel) {
+        <label [for]="idPrefix() + '-' + field.name">{{ label(field) }}</label>
         <select
           #lookup
-          [id]="'resource-' + field.name"
+          [id]="idPrefix() + '-' + field.name"
           [value]="lookupValue(field)"
-          [disabled]="busy() || !editable(field, record() !== null)"
+          [disabled]="busy() || readOnly() || !editable(field, record() !== null)"
           (change)="choose(field.name, lookup.value)"
         >
           <option value="">Choose a reference</option>
@@ -42,22 +42,23 @@
         <core-fe-field-renderer
           [type]="field.type"
           [context]="{
-            id: 'resource-' + field.name,
+            id: idPrefix() + '-' + field.name,
             label: label(field),
             value: values()[field.name] ?? null,
             disabled: busy(),
-            readOnly: !editable(field, record() !== null),
+            readOnly: readOnly() || !editable(field, record() !== null),
             choices: field.enumValues,
           }"
           (valueChange)="change(field.name, $event)"
         />
       }
+      <small data-constraints>{{ constraintHelp(field) }}</small>
       <small
         >{{ field.type }}{{ field.required ? ' · Required' : ''
         }}{{ field.nullable ? ' · Nullable' : ''
         }}{{ field.immutable ? ' · Immutable' : '' }}</small
       >
-      @if (field.nullable && editable(field, record() !== null)) {
+      @if (!readOnly() && field.nullable && editable(field, record() !== null)) {
         <button type="button" [disabled]="busy()" (click)="change(field.name, null)">
           Set null
         </button>
@@ -66,8 +67,19 @@
         <p role="alert">{{ fieldErrors()[field.name] }}</p>
       }
     </div>
-  }
+  </ng-template>
+  <app-resource-layout
+    [fields]="renderedFields()"
+    [presentation]="presentation()"
+    [actions]="actions()"
+    [availability]="availability()"
+    [busy]="busy()"
+    [fieldTemplate]="fieldControl"
+    (actionSelected)="actionSelected.emit($event)"
+  />
   <p role="alert">{{ message() }}</p>
-  <button type="submit" [disabled]="busy()">Save</button
-  ><button type="button" [disabled]="busy()" (click)="cancelled.emit()">Cancel</button>
+  @if (!readOnly()) {
+    <button type="submit" [disabled]="busy()">Save</button>
+  }
+  <button type="button" [disabled]="busy()" (click)="cancelled.emit()">Cancel</button>
 </form>
