@@ -2,7 +2,18 @@
   <ul>
     @for (item of items(); track item.id) {
       <li>
-        <a [href]="item.href">{{ item.label }}</a>
+        @if (item.href) {
+          @if (item.applicationRoute) {
+            <a [routerLink]="item.href">{{ item.label }}</a>
+          } @else {
+            <a [href]="item.href">{{ item.label }}</a>
+          }
+        } @else {
+          <span>{{ item.label }}</span>
+        }
+        @if (item.children?.length) {
+          <core-fe-default-navigation [items]="item.children" />
+        }
       </li>
     }
   </ul>

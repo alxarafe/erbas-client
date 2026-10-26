@@ -9,6 +9,24 @@ map $request_uri $user_detail_upstream {
     ~^/backends/dotnet/api/users/ ${ERBAS_DOTNET_UPSTREAM};
 }
 
+# Only the contracted generic routes; keep encoded opaque IDs and query grammar.
+map $request_uri $resource_path {
+    default "";
+    ~^/backends/(?:java|dotnet)(/api/(?:meta/(?:navigation|resources)(?:/[^/?]+)?|resources/[^/?]+(?:/[^/?]+)?|resource-actions/[^/?]+/(?:availability|[^/?]+/execute)))(?:\?.*)?$ $1;
+}
+map $request_uri $resource_upstream {
+    default "";
+    ~^/backends/java/ ${ERBAS_JAVA_UPSTREAM};
+    ~^/backends/dotnet/ ${ERBAS_DOTNET_UPSTREAM};
+}
+map "$request_method:$request_uri" $resource_allowed {
+    default 0;
+    ~^GET:/backends/(?:java|dotnet)/api/meta/(?:navigation|resources)(?:/[^/?]+)?(?:\?.*)?$ 1;
+    ~^(?:GET|POST):/backends/(?:java|dotnet)/api/resources/[^/?]+(?:\?.*)?$ 1;
+    ~^(?:GET|PATCH|DELETE):/backends/(?:java|dotnet)/api/resources/[^/?]+/[^/?]+(?:\?.*)?$ 1;
+    ~^POST:/backends/(?:java|dotnet)/api/resource-actions/[^/?]+/(?:availability|[^/?]+/execute)(?:\?.*)?$ 1;
+}
+
 server {
     listen 80;
     server_name _;
@@ -76,6 +94,12 @@ server {
         proxy_pass http://$upstream/api/ai/assistant/invocations;
         limit_except POST { deny all; }
         include /etc/nginx/user-proxy.conf;
+    }
+    location ~ ^/backends/(?:java|dotnet)/api/(?:meta|resources|resource-actions)(?:/|$) {
+        if ($resource_path = "") { return 404; }
+        if ($resource_allowed = 0) { return 403; }
+        proxy_pass http://$resource_upstream$resource_path$is_args$args;
+        include /etc/nginx/resource-proxy.conf;
     }
     location = /proxy-error { internal; return 502; }
     location /backends/ {

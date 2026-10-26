@@ -1,3 +1,6 @@
+import { finishLegacyNavigation } from './resource-runtime/runtime-fixtures';
+import { provideRouter } from '@angular/router';
+import { APP_ROUTES } from './resource-runtime/resource-routing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpStatusCode, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -69,7 +72,7 @@ describe('Administrator user creation UI', () => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(APP_ROUTES), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
     session = TestBed.inject(AuthSession);
@@ -82,7 +85,10 @@ describe('Administrator user creation UI', () => {
     http.expectOne(base() + '/health').flush({ status: 'ok' }, { headers });
     await fixture.whenStable();
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    finishLegacyNavigation(http);
+    http.verify();
+  });
   it('hides creation without session, while profile loads and for a regular user', async () => {
     expect(page.querySelector('#create-user')).toBeNull();
     const profile = login();

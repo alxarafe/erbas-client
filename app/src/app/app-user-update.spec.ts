@@ -1,3 +1,6 @@
+import { finishLegacyNavigation, isNavigationRequest } from './resource-runtime/runtime-fixtures';
+import { provideRouter } from '@angular/router';
+import { APP_ROUTES } from './resource-runtime/resource-routing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpStatusCode, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -71,7 +74,7 @@ describe('Administrator user update UI', () => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(APP_ROUTES), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(App);
@@ -83,7 +86,10 @@ describe('Administrator user update UI', () => {
     http.expectOne(base() + '/health').flush({ status: 'ok' }, { headers });
     await fixture.whenStable();
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    finishLegacyNavigation(http);
+    http.verify();
+  });
   it('offers editing only to loaded administrators with detail; identity is informational', async () => {
     expect(page.querySelector('#update-user')).toBeNull();
     login().flush({ ...admin, admin: false }, { headers });
@@ -104,7 +110,7 @@ describe('Administrator user update UI', () => {
   it('no changes sends no HTTP and reports a local state', async () => {
     await load();
     submit();
-    http.expectNone(() => true);
+    http.expectNone((request) => !isNavigationRequest(request));
     expect(app().updateState()).toBe(UserUpdateState.NoChanges);
   });
   it.each(['enabled', 'admin', 'both'])(
@@ -127,7 +133,7 @@ describe('Administrator user update UI', () => {
       expect(app().users()).toEqual({ ...before, items: [admin, updated] });
       expect(app().currentUser()).toEqual(admin);
       expect(app().updateState()).toBe(UserUpdateState.Updated);
-      http.expectNone(() => true);
+      http.expectNone((request) => !isNavigationRequest(request));
     },
   );
   it('never inserts a user outside the loaded window', async () => {

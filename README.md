@@ -13,7 +13,10 @@ a minimal synchronous ERBAS Assistant. It consumes published erbas-contract
 operations, including AI-001 from v0.11.1.
 It uses standalone components, strict TypeScript, HttpClient and signals.
 The Core FE provides compiled sparse themes and typed shell extension slots; see
-[theme architecture](docs/core-fe-theme-runtime.md). Resource-driven CRUD remains future work.
+[theme architecture](docs/core-fe-theme-runtime.md). An optional
+[generic navigation and static CRUD fallback](docs/client-runtime-001.md) consumes
+local unpublished v0.13.0 candidate endpoints; this does not change published
+contract/release pins. Specialized screens remain compiled Angular components.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.

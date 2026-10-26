@@ -1,8 +1,9 @@
 # Core FE theme runtime and shell slots
 
 CORE-FE-THEME-RUNTIME-001 supplies compiled Angular theme artifacts, normalized field
-type objects and typed shell extension slots. It does not consume Resource APIs or
-implement the future Resource Runtime. Existing backend selection, Health, sessions,
+type objects and typed shell extension slots. The theme layer does not consume
+Resource APIs; [CLIENT-RUNTIME-001](client-runtime-001.md) now provides that separate
+consumer using these compiled artifacts. Existing backend selection, Health, sessions,
 profile, users and assistant remain owned by App and their existing clients/services.
 
 ## One-hop themes
@@ -98,7 +99,7 @@ semantic type → NormalizedFieldType object → ThemeResolver → compiled rend
 The registry has one frozen object and distinct artifact per BOOLEAN, STRING, TEXT,
 INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, DECIMAL, UUID, DATE, TIME, DATETIME,
 ENUM and BINARY. A Map resolves the descriptor; no giant widget-selection switch
-belongs in the future Resource Runtime. Numeric defaults can share an implementation
+belongs in the Resource metadata consumer. Numeric defaults can share an implementation
 while keeping independently replaceable keys.
 
 FieldRendererContext contains id, label, value, disabled/readOnly and optional enum
@@ -112,9 +113,9 @@ currently has a minimal output renderer; file editing/transport is deferred.
 
 Renderers are deliberately small: no Resource DTO, validation engine, dirty state,
 relation editor or generic form. The context object may later gain optional state/error
-properties without changing descriptor/artifact resolution. Future required/range/
-length/pattern validation, maximumLength prevention, dirty tracking, cross-tab error
-navigation and action authorization/availability remain Resource Runtime work.
+properties without changing descriptor/artifact resolution. Required/type/length assistance, dirty tracking and action availability now belong
+to the separate Resource consumer. Exact server constraints remain authoritative;
+cross-tab error navigation and advanced editing remain later work.
 
 ## Compiled shell and slots
 
@@ -157,7 +158,7 @@ slot in its utility rail. topbar-actions reserves the future notifications/messa
 user-actions location; themes may relocate it. No notifications or floating AI launcher
 is implemented. Existing assistant remains in its current feature area.
 
-## Next phase and validation
+## Consumer boundary and validation
 
 ```text
 backend Resource Metadata
@@ -167,11 +168,11 @@ backend Resource Metadata
     → renderer
 ```
 
-The next runtime consumes metadata directly and must not select concrete widgets or
-generate per-resource Angular source. This task makes no `/api/meta/resources`,
-`/api/resources` or `/api/resource-actions` requests. It adds no Router, Angular Forms,
-UI framework, generic CRUD, Resource tabs/actions, dirty guards, shell business rules,
-AI integration, remote plugins or theme inheritance.
+The Resource consumer interprets metadata without selecting concrete theme widgets
+or generating per-resource Angular source. Its protocol, routes, static CRUD and
+validation are documented separately. Theme artifacts still own no Resource HTTP
+requests, authorization policies, Angular Forms, workflow engine, remote plugins
+or theme inheritance.
 
 `./bin/test` runs Angular component/unit tests with mocked HTTP and formatting.
 `./bin/check` also runs Python orchestration tests, the production Angular/Nginx build

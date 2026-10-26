@@ -1,4 +1,8 @@
-import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { RuntimeClient, failureMessage } from './resource-runtime/runtime-client';
+import { targetUrl } from './resource-runtime/resource-routing';
+import { NavigationItem } from './resource-runtime/models';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ThemeShellOutlet } from './core-fe/shell/theme-shell-outlet';
 import { provideThemeRuntime } from './core-fe/theme/theme-runtime';
 import { BUILTIN_THEMES } from './core-fe/themes/themes';
@@ -51,18 +55,26 @@ type LoginState =
 
 @Component({
   selector: 'app-root',
-  imports: [DatePipe, ThemeShellOutlet],
+  imports: [DatePipe, ThemeShellOutlet, RouterOutlet],
   providers: [provideThemeRuntime(BUILTIN_THEMES)],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
-  readonly navigation: readonly NavigationEntry[] = [
-    { id: 'backend', label: 'Backend', href: '#backend-heading' },
-    { id: 'authentication', label: 'Authentication', href: '#auth-heading' },
-    { id: 'assistant', label: 'Assistant', href: '#assistant-heading' },
-    { id: 'users', label: 'Users', href: '#users-heading' },
-  ];
+  readonly runtime = inject(RuntimeClient);
+  readonly runtimeFailureMessage = failureMessage;
+  readonly navigation = computed<readonly NavigationEntry[]>(() => {
+    function entries(items: NavigationItem[]): NavigationEntry[] {
+      return items.map((item) => ({
+        id: item.id,
+        label: item.label,
+        children: entries(item.children),
+        ...(item.target ? { href: targetUrl(item.target), applicationRoute: true } : {}),
+        ...(item.icon ? { icon: item.icon } : {}),
+      }));
+    }
+    return entries(this.runtime.navigation()?.items ?? []);
+  });
   readonly backends = BACKENDS;
   readonly demoDefaults = signal<DemoDefaults | null>(null);
   readonly selection = inject(BackendSelection);
@@ -194,6 +206,7 @@ export class App {
   private readonly health = inject(HealthClient);
   private request?: Subscription;
   private loginRequest?: Subscription;
+  private locallyClearedEpoch?: number;
 
   constructor() {
     const demoRequest = inject(HttpClient)
@@ -203,6 +216,18 @@ export class App {
         error: () => this.demoDefaults.set(null),
       });
     effect(() => this.check(this.selection.selected().proxyBaseUrl));
+    // Generic API 401s clear AuthSession too. Discard legacy feature state at
+    // that same boundary, not only when the local Clear session button is used.
+    effect(() => {
+      const epoch = this.session.contextEpoch();
+      if (!this.session.authenticated() && epoch !== this.locallyClearedEpoch)
+        untracked(() => {
+          this.clearProtectedData();
+          this.clearAssistant();
+          if (this.loginState() === 'authenticated') this.loginState.set('idle');
+        });
+    });
+
     inject(DestroyRef).onDestroy(() => {
       demoRequest.unsubscribe();
       this.request?.unsubscribe();
@@ -229,6 +254,7 @@ export class App {
     this.clearAssistant();
     this.clearProtectedData();
     this.session.clear();
+    this.locallyClearedEpoch = this.session.contextEpoch();
     this.loginState.set('submitting');
     this.loginRequest = this.auth
       .login(backend.proxyBaseUrl, { email: email.value, password: password.value })
@@ -265,6 +291,7 @@ export class App {
     this.clearAssistant();
     this.clearProtectedData();
     this.session.clear();
+    this.locallyClearedEpoch = this.session.contextEpoch();
     this.loginState.set('idle');
   }
 
@@ -512,6 +539,7 @@ export class App {
     this.profileRequest = this.usersClient.current(backend.proxyBaseUrl, bearer).subscribe({
       next: (user) => {
         this.currentUser.set(user);
+        this.session.markContextReady();
         this.profileState.set(UserReadState.Loaded);
       },
       error: (error: unknown) => {

@@ -1,10 +1,17 @@
-<core-fe-shell-outlet [heading]="heading" [content]="content" [navigation]="navigation" />
+<core-fe-shell-outlet [heading]="heading" [content]="content" [navigation]="navigation()" />
 <ng-template #heading>
   <p class="eyebrow">SHARED CLIENT · WEB-003</p>
   <h1>ERBAS</h1>
   <p>One executable contract. Multiple interchangeable implementations.</p>
 </ng-template>
 <ng-template #content>
+  @if (authenticated()) {
+    @if (runtime.error(); as failure) {
+      <p role="status">Navigation: {{ runtimeFailureMessage(failure) }}</p>
+    }
+    <button type="button" (click)="runtime.revalidateNavigation()">Revalidate navigation</button>
+    <router-outlet />
+  }
   <section aria-labelledby="backend-heading">
     <h2 id="backend-heading">Backend</h2>
     <label for="backend">Choose an implementation</label>

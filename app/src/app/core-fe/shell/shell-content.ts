@@ -4,7 +4,10 @@ import { ShellSlot } from './shell-extensions';
 export interface NavigationEntry {
   readonly id: string;
   readonly label: string;
-  readonly href: string;
+  readonly href?: string;
+  readonly children?: readonly NavigationEntry[];
+  readonly applicationRoute?: boolean;
+  readonly icon?: string;
 }
 export const STRUCTURE_BINDINGS = { navigation: 'navigation', items: 'items' } as const;
 @Directive()

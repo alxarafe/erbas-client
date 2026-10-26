@@ -1,7 +1,7 @@
 import { InputSignal, OutputEmitterRef } from '@angular/core';
 
 // Exact numbers, dates, instants and binary values stay strings here. Transport and
-// semantic validation belong to the future Resource Runtime, not to theme widgets.
+// semantic validation belong to Resource Runtime consumption, not to theme widgets.
 export type FieldValue = string | boolean | null;
 export interface FieldRendererContext {
   readonly id: string;

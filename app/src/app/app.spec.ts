@@ -1,3 +1,6 @@
+import { finishLegacyNavigation } from './resource-runtime/runtime-fixtures';
+import { provideRouter } from '@angular/router';
+import { APP_ROUTES } from './resource-runtime/resource-routing';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -9,11 +12,14 @@ describe('Application', () => {
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(APP_ROUTES), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    finishLegacyNavigation(http);
+    http.verify();
+  });
   it('loads, checks Health automatically and renders online', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();

@@ -1,3 +1,8 @@
+import { RuntimeClient } from './resource-runtime/runtime-client';
+import { RESOURCE_PROTOCOL } from './resource-runtime/models';
+import { finishLegacyNavigation } from './resource-runtime/runtime-fixtures';
+import { provideRouter } from '@angular/router';
+import { APP_ROUTES } from './resource-runtime/resource-routing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpStatusCode, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -71,7 +76,7 @@ describe('Profile and administrator detail UI', () => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(APP_ROUTES), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
     session = TestBed.inject(AuthSession);
@@ -84,7 +89,10 @@ describe('Profile and administrator detail UI', () => {
     http.expectOne('/backends/java/health').flush({ status: 'ok' }, { headers });
     await fixture.whenStable();
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    finishLegacyNavigation(http);
+    http.verify();
+  });
 
   it.each(['java', 'dotnet'])(
     'loads %s profile after login and fetches detail through the same UI',
@@ -298,5 +306,25 @@ describe('Profile and administrator detail UI', () => {
     expect(session.authenticated()).toBe(false);
     expect(fixture.componentInstance.currentUser()).toBeNull();
     expect(fixture.componentInstance.users()).toBeNull();
+  });
+  it('a generic API 401 clears existing protected feature data through the shared session boundary', async () => {
+    await signedIn();
+    await loaded();
+    expect(fixture.componentInstance.users()?.items.length).toBe(1);
+    TestBed.inject(RuntimeClient)
+      .get('catalogue', 'one')
+      .subscribe({ error: () => {} });
+    http
+      .expectOne('/backends/java' + RESOURCE_PROTOCOL.records + '/catalogue/one')
+      .flush('{"code":"unauthorized","errors":[{"code":"unauthorized"}]}', {
+        status: HttpStatusCode.Unauthorized,
+        statusText: 'Unauthorized',
+        headers,
+      });
+    await fixture.whenStable();
+    expect(session.authenticated()).toBe(false);
+    expect(fixture.componentInstance.currentUser()).toBe(null);
+    expect(fixture.componentInstance.users()).toBe(null);
+    expect(page.querySelector('table')).toBe(null);
   });
 });
