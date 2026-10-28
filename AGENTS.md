@@ -32,6 +32,21 @@ Keep the shared HTTP contract and supplied base URL independent of local ports.
 Document only existing functionality, clearly distinguishing planned work.
 Preserve unrelated changes; write public documentation in English.
 
+## Published contract and generic presentation
+
+`contract.revision` declares formal consumption of published immutable v0.13.0;
+[publication identity and backend alignment](docs/full-stack-development.md#published-contract-adoption)
+record the exact tag object/commit. .NET formally adopts this release; do not claim
+Java support for the new operations before its adoption. Earlier candidate proofs
+remain historical evidence, distinct from published-release verification.
+
+Generic CRUD is the primary presentation path for resources fitting standard
+patterns. Specific Angular components are reserved for UX that metadata, renderers
+or registered extensions cannot reasonably express. Preserve `RESOURCE_SCREENS`
+as an explicit override/extension and escape hatch for specialized UX. Improvements
+to shared MANY_TO_ONE controls, layouts or themes must benefit all resources using
+that pattern. Do not introduce a new registry or renderer to record this policy.
+
 ## Task lifecycle
 
 Obtain explicit task approval, implement only its scope, pass applicable

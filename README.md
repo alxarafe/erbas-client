@@ -10,13 +10,17 @@ The shared Angular client demonstrates **one executable contract, multiple
 interchangeable implementations**. It provides backend selection, public Health,
 shared authentication, basic administrator user management with pagination, and
 a minimal synchronous ERBAS Assistant. It consumes published erbas-contract
-operations, including AI-001 from v0.11.1.
+operations from published immutable **v0.13.0**, declared by
+[contract.revision](contract.revision).
 It uses standalone components, strict TypeScript, HttpClient and signals.
 The Core FE provides compiled sparse themes and typed shell extension slots; see
-[theme architecture](docs/core-fe-theme-runtime.md). An optional
-[generic navigation and static CRUD fallback](docs/client-runtime-001.md) consumes
-local unpublished v0.13.0 candidate endpoints; this does not change published
-contract/release pins. Specialized screens remain compiled Angular components.
+[theme architecture](docs/core-fe-theme-runtime.md).
+[Effective navigation and generic CRUD](docs/client-runtime-001.md), including
+[static layouts and effective UI](docs/client-runtime-002.md), consume published
+v0.13.0. Generic CRUD is the primary presentation path for standard resources;
+compiled Angular screens are explicit extensions for UX that metadata, renderers
+or registered extensions cannot reasonably express. Shared improvements to
+MANY_TO_ONE controls, layouts or themes benefit every resource using that pattern.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.
@@ -29,15 +33,18 @@ Health indicates HTTP process liveness, not database readiness.
 
 | Repository | Responsibility |
 | --- | --- |
-| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.4.0 |
-| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of v0.4.0 |
-| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation of v0.4.0 plus platform modules |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Shared Angular client for Health, authentication, basic user administration and AI-001 from either backend |
+| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.13.0 |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of legacy shared operations; new v0.13.0 operations are not adopted |
+| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation formally adopting v0.13.0 plus platform modules |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular consumer of v0.13.0; legacy operations remain usable against supporting backends |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
 Java and .NET badges report each backend's authoritative `./bin/check`, including
-mandatory shared conformance against published `v0.4.0`. The Angular client
-consumes these shared operations; its CI does not perform backend shared conformance.
+mandatory shared conformance against each backend's declared release. .NET is
+aligned with v0.13.0; Java compatibility with generic CRUD/navigation is not
+claimed until formal adoption. The client's exact release identity and adoption
+boundaries are recorded in [the development guide](docs/full-stack-development.md#published-contract-adoption).
+Client CI does not perform backend shared conformance.
 The [verified real dual-backend demo](docs/full-stack-development.md#web-002-integration-verification-2026-10-09)
 is separate integration evidence; no badge claims contract-repository CI.
 
@@ -140,7 +147,8 @@ Equivalent settings are `ERBAS_DOTNET_CONTAINER` and `ERBAS_DOTNET_UPSTREAM`.
 Upstreams must be trusted Docker DNS names (with port), reachable on the attached
 networks. These are deployment configuration, not user-provided proxy destinations.
 Only Health, `/api/auth/login`, `/api/auth/me`, users collection/detail paths and
-the exact AI assistant invocation route are proxied. Each route permits only its
+the exact AI assistant invocation route, effective navigation, resource metadata,
+generic CRUD and resource-action paths are proxied. Each route permits only its
 implemented contract methods; other methods and extra path segments are blocked.
 See the [proxy details](docs/full-stack-development.md#ports-and-proxy-routes).
 All other `/backends/` paths return 404. Login preserves backend HTTP statuses, JSON
@@ -207,7 +215,7 @@ user data; self-updates immediately adjust local session access. See
 [basic user administration](docs/full-stack-development.md#administrator-user-update-web-003d)
 for behavior, error handling and verification limits.
 
-The ERBAS Assistant consumes AI-001 from erbas-contract v0.11.1 through either
+The ERBAS Assistant consumes AI-001 from adopted erbas-contract v0.13.0 through either
 selected backend. The .NET backend implements the operation; Java may report it
 unavailable until it adopts AI-001. Authentication and the backend-owned
 `ai.assistant.invoke` permission are required. The UI sends one closed `message`
@@ -219,7 +227,7 @@ Markdown, WRITE actions, approvals, automatic retry or prompt/answer persistence
 is implemented.
 
 Email/password changes, deletion, roles and permissions remain outside scope,
-along with refresh, registration, server logout, ERP navigation, SSR, PWA and
+along with refresh, registration, server logout, custom ERP workflows, SSR, PWA and
 production deployment.
 Health stays public and independent of authentication. The client does not adapt
 nonconforming responses. Health redirects are blocked by Nginx; login statuses

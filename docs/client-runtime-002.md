@@ -1,13 +1,20 @@
 # CLIENT-RUNTIME-002: presentation metadata and effective UI
 
-The v0.13.0 candidate already describes the static form hierarchy and effective
-operation/action capabilities. No erbas-contract change or publication is needed.
-The backend remains pinned to published v0.12.0; candidate validation is explicit.
+Published immutable erbas-contract **v0.13.0** defines the static form hierarchy
+and effective operation/action capabilities. The client formally consumes this
+release through `contract.revision`; .NET formally adopts the same release.
+See the [exact identity and alignment](full-stack-development.md#published-contract-adoption).
+Java compatibility with the new operations is not claimed before adoption.
 
 > Presentation metadata controls generic rendering, not authorization.
 
-> Generic rendering is a fallback for standard resource screens; specialized
-> Angular components remain the preferred mechanism for complex UX.
+> Generic CRUD is the primary presentation path for standard resource patterns.
+> `RESOURCE_SCREENS` is an explicit override/extension for specialized UX that
+> metadata, renderers or registered extensions cannot reasonably express.
+
+Improvements to shared MANY_TO_ONE controls, layouts or themes must benefit all
+resources using those patterns. This consolidation adds no renderers, themes,
+registry, field-level permissions or separate CREATE/EDIT layouts.
 
 In v0.13.0, field presentation is static; CRUD capabilities, actions and navigation
 are effective per user/context. Field-level authorization is outside this version.
@@ -17,6 +24,12 @@ meaning. Immutable permits initial input and prevents subsequent modification;
 it is not a user-dependent field permission. Future field authorization would need
 both effective Resource Runtime metadata and authoritative read/write enforcement,
 not merely a presentation flag or an Angular permission rule.
+
+## Published adoption verification
+
+Both existing live component proofs and the bounded Chromium procedure were rerun
+against .NET's formally adopted v0.13.0. See [published-adoption evidence](full-stack-development.md#published-adoption-verification)
+for coverage and results, separate from the historical preparation records below.
 
 ## Renderer and ordering
 
@@ -47,7 +60,7 @@ appended exactly once in an Other fields area, in remaining metadata field order
 Without presentation, the existing flat Details form remains. Empty groups are
 removed, then sections and tabs without fields or eligible actions are removed.
 An action-only container is not empty while it has an eligible action.
-UI.Hidden/FormExcluded fields are neither rendered in form fallback nor collected
+UI.Hidden/FormExcluded fields are neither rendered in generic forms nor collected
 into a form mutation; those hints do not create backend field authorization.
 
 The current .NET definition validator requires every visible field to be placed
@@ -95,7 +108,7 @@ This does not add route-level unsaved-change guards or a workflow framework.
 
 ## Real proving resource and profiles
 
-Backend local commit `560bfc5` adds only existing presentation metadata to
+Backend commit `560bfc5` introduced existing presentation metadata on
 `assets.asset`, with no fields, security rules, lifecycle, constraints, CRUD routes
 or persistence changes:
 
@@ -162,6 +175,12 @@ same-origin proxy. Keep credentials out of URLs and screenshots.
    four forbidden mutations directly, rather than relying on hidden controls.
 8. Log out and remove only the disposable proof infrastructure through owner cleanup.
 
+### Historical pre-publication browser evidence
+
+The following browser run and original verification summary predate publication
+and formal adoption. Their candidate and old-pin references retain that historical
+meaning; they are not the current release status.
+
 Real Chromium browser verification passed against the already-running local
 client, .NET and PostgreSQL services. The client was rebuilt from this tree and the
 .NET service restarted to load commit `560bfc5` into its startup-frozen resource
@@ -202,7 +221,7 @@ Browser evidence:
   removed afterwards; deletion was verified. Existing development services/data
   remained available.
 
-## Verification and remaining limits
+### Original verification and remaining limits
 
 Verification completed:
 

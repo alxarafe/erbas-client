@@ -5,6 +5,70 @@ scripts. Java and .NET retain ownership of their Docker infrastructure, Compose
 files, builds, databases and lifecycle. The client defines no backend containers
 or combined ecosystem Compose file.
 
+## Published contract adoption
+
+The client's [contract.revision](../contract.revision) formally declares consumption
+of published immutable **erbas-contract v0.13.0**:
+
+- Annotated tag object: `919684db4f607a575397576b87577cd9582e1f86`.
+- Target commit: `29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`.
+
+The marker declares the client's contractual target; it is not a package dependency
+or a guarantee that a selected backend implements every operation. Client CI does
+not clone/download the contract to compare the marker string. Backend repositories
+own immutable checkout verification and shared conformance.
+
+.NET formally adopts v0.13.0 at `baf5f4f48ac924e2bed35629835be4d43bfc4ab8`.
+Generic Resource Runtime and effective navigation now use published operations
+directly. Java support for those operations is not claimed until Java adopts them;
+legacy supported features remain usable and navigation failure is reported without
+inventing a replacement menu. Historical dual-backend and candidate proofs below
+retain their original scope, dates and source identities.
+
+[Generic CRUD](client-runtime-001.md) is the primary presentation path for standard
+resource patterns. `RESOURCE_SCREENS` provides explicit compiled overrides for UX
+that cannot reasonably be expressed using metadata, renderers or registered
+extensions. Shared MANY_TO_ONE, layout and theme improvements benefit every
+resource using the pattern; resource-specific screens are not the default path.
+See [presentation metadata](client-runtime-002.md) for static layouts and effective
+operation-level UI. This policy introduces no new registry, renderer, API, field
+permission model or separate CREATE/EDIT layouts.
+
+## Published adoption verification
+
+The published-adoption run used .NET `baf5f4f48ac924e2bed35629835be4d43bfc4ab8`
+with its normal validation Host and four fresh disposable databases. The client
+ran through its production Nginx proxy on the backend Docker network, without
+host ports, response interception or mocks. Backend source and rules were unchanged.
+
+- `./bin/check` passed 627 Angular tests and 15 Python tests, formatting,
+  production build and both isolated runtime/proxy smokes.
+- Existing `runtime-live.proof.ts` passed: login/profile, effective navigation,
+  RESOURCE URL mapping, metadata, generic list/create/PATCH/filter/delete.
+- Existing `presentation-live.proof.ts` passed: two real identities, identical
+  static fields/layout, effective navigation/capability differences, separate
+  caches, ETag revalidation and four forbidden mutations returning 403.
+- The documented bounded browser procedure passed using Chromium 141.0.7390.37
+  and temporary Playwright 1.56.1, with the same official image/digest recorded in
+  [CLIENT-RUNTIME-002](client-runtime-002.md#bounded-real-browser-procedure).
+  Real navigation opened the generic RESOURCE screen; four tabs, seven sections
+  and nine groups matched metadata. Collapse behavior and unsaved tab state were
+  preserved. An administrator executed an action (204); the restricted profile
+  had read-only controls and no write/action affordances. Both identities received
+  metadata 304 on revalidation; navigation/metadata ETags differed between them,
+  and restricted login fetched fresh metadata without the admin conditional tag.
+  Direct restricted CREATE/PATCH/DELETE/action attempts all returned 403. There
+  were zero page runtime errors.
+- Owner cleanup removed the validation Host, client proxy and all four disposable
+  databases. Existing PostgreSQL development service/data were preserved.
+
+These are new checks against the adopted published release. The original
+pre-publication proofs in CLIENT-RUNTIME-001/002 retain their original versions
+and claims. Application code, live proof sources, package files and the Rolldown
+installation fix from `8e1fd53` remain unchanged. No permanent browser dependency
+or new E2E framework was introduced. The marker declares consumption; these client
+proofs do not replace the backend's shared-conformance suite.
+
 ## Recommended directory layout and host requirements
 
 ```text
@@ -411,6 +475,9 @@ accounts, resets accounts or deletes volumes. `demo-up` now verifies the existin
 regular identity instead of provisioning one. Success/last_admin are covered in
 Angular/fake checks; backend conformance remains a separate backend-owned fact.
 
+The following scope statement records the original WEB-003D slice; current
+generic CRUD and routing are covered separately by CLIENT-RUNTIME-001/002.
+
 Email/password editing, DELETE, roles/permissions, search/filter/custom sorting,
 generic CRUD and routing remain outside scope. No dependencies are added.
 
@@ -436,7 +503,7 @@ and evidence live here. These checks do not claim a new backend conformance run.
 
 The Angular application exposes a minimal synchronous **ERBAS Assistant** for the
 selected backend. It consumes the published AI-001 operation from
-erbas-contract v0.11.1 and sends exactly one closed `message` field to
+the adopted erbas-contract v0.13.0 and sends exactly one closed `message` field to
 `POST /api/ai/assistant/invocations` through the same-origin proxy. The section
 is visible before login and explains that authentication is required; the form
 appears only with an authenticated, backend-bound bearer.

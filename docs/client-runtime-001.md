@@ -1,15 +1,23 @@
-# CLIENT-RUNTIME-001: effective navigation and generic CRUD fallback
+# CLIENT-RUNTIME-001: effective navigation and primary generic CRUD
 
-This client consumes the local, unpublished erbas-contract v0.13.0 candidate
-(`29bd8de`) and the generic protocol implemented by alxarafe-dotnet (`b396663`).
-No contract/backend changes, publication, production contract pin or release
-configuration change is required. Existing published authentication, users and
-assistant screens remain compiled application features. A backend without these
-candidate endpoints can continue serving those features; navigation failure is
-reported, without inventing a replacement application menu.
+This client formally consumes published immutable erbas-contract **v0.13.0**, as
+recorded by `contract.revision`. The [release identity and backend alignment](full-stack-development.md#published-contract-adoption)
+include the exact annotated tag object, target commit and adopting .NET revision.
+No contract/backend implementation change is required for this client adoption.
+Existing authentication, users and assistant screens remain compiled features.
+Java is not declared compatible with the new operations until it adopts them.
+A backend lacking generic CRUD/navigation can still serve its supported legacy
+features; navigation failure is reported without inventing a replacement menu.
 
-> The generic CRUD renderer is a fallback for standard resource screens. It is not
-> intended to replace specialized Angular components for complex workflows or UX.
+> Generic CRUD is the primary presentation path for standard resource patterns.
+> Specific Angular components are reserved for UX that cannot reasonably be
+> expressed through metadata, renderers or registered extensions.
+
+## Published adoption verification
+
+Both existing live component proofs and the bounded Chromium procedure were rerun
+against .NET's formally adopted v0.13.0. See [published-adoption evidence](full-stack-development.md#published-adoption-verification)
+for coverage and results, separate from the historical preparation records below.
 
 ## Bootstrap, context and navigation
 
@@ -50,19 +58,23 @@ no generator, form framework, component library or test framework is added.
 - ROUTE targets use ordinary local Angular routes. An application page must already
   be compiled/registered. Unknown routes show the normal missing-page component.
 - RESOURCE targets become `/resources/:resource`. ResourceHost looks in the small
-  `RESOURCE_SCREENS` injection-token registry and renders that compiled component,
-  otherwise ResourceScreen. Overrides accept a `resource` input.
+  `RESOURCE_SCREENS` injection-token registry for an explicitly registered override;
+  standard resources use ResourceScreen. Specialized overrides accept a `resource`
+  input and provide an escape hatch for UX outside the generic patterns.
 - Override registrations select screens, not menu items, claims or permissions.
   No Assets screen or resource identifier is compiled into generic code.
 
 For example, application composition can provide
 `{provide: RESOURCE_SCREENS, useValue: {'example.resource': SpecificScreen}}`.
+Shared MANY_TO_ONE controls, layouts and themes are reused across resources;
+an improvement to a shared pattern must benefit all resources using it without
+adding individual screens. This does not introduce a new extension registry.
 Use normal APP_ROUTES additions for custom pages. No arbitrary templates,
 JavaScript or TypeScript are generated/downloaded from metadata.
 
 ## Generic resource consumption
 
-Models in `resource-runtime/models.ts` mirror the candidate's public shapes.
+Models in `resource-runtime/models.ts` mirror the published v0.13.0 shapes.
 RuntimeClient reads metadata, list pages, individual records, create/PATCH/delete,
 entity action availability and execution. Metadata is cached during the context;
 explicit `metadata(resource, true)` uses its ETag and conditional 304. Data pages
@@ -158,6 +170,11 @@ unit-test discovery or production compilation. It discovers a suitable curated s
 catalogue from public metadata and uses no resource-specific component. It removes
 its probe record; infrastructure owner cleanup remains mandatory on failure too.
 
+### Historical pre-publication evidence
+
+The following records predate publication and formal adoption. Candidate status,
+backend pins and source revisions describe those runs, not current adoption.
+
 The bounded proof passed against backend `b396663`, selecting `assets.asset-type`:
 auth/profile → effective navigation → metadata → generic list → create → partial
 PATCH → filtered read → delete. Fresh validation databases, host and client proxy
@@ -193,6 +210,6 @@ The contract proved sufficient without changes. Dynamic Assets field composition
 server-push invalidation, sophisticated relation editor selection, full tab/section/
 group layout or unsaved-change navigation guards, workflow/state-machine UI,
 collection/selection actions, joins, bulk CRUD, binary editing and stale-write
-version UI remain outside this first fallback. Specialized screens remain normal
+version UI remained outside this initial renderer. Specialized overrides use normal
 compiled Angular components. No candidate publication, backend/CI pin change,
 frontend release, push, merge or tag is implied.
