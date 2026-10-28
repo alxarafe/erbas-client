@@ -266,5 +266,21 @@ const READ_STATUS = { ok: 200, created: 201, invalidRequest: 400, conflict: 409,
     console.log(`OK: ${backend} profile and GET/PATCH detail proxies, encoded opaque ID, no-store, 401/404 and redirect/mutation blocking.`);
     console.log(`OK: ${backend} mock users proxy (bearer, query, 200/400/401/403, no-store and redirect blocking).`);
   }
+  const metadataPath='/api/meta/resources', presentationSuffix='/presentation';
+  for (const backend of ['java','dotnet']) {
+    const endpoint=`http://client/backends/${backend}${metadataPath}`;
+    const headers={Accept:USER_HTTP.json,Authorization:'Bearer fictitious-mock-token'};
+    const metaResponse=await fetch(endpoint+'/smoke.resource',{headers});assert.equal(metaResponse.status,READ_STATUS.ok);
+    const meta=await metaResponse.json();
+    const response=await fetch(endpoint+'/smoke.resource'+presentationSuffix,{headers});assert.equal(response.status,READ_STATUS.ok);
+    assert.equal(response.headers.get('cache-control'),'private, no-cache');assert.equal(response.headers.get('vary'),'Authorization');
+    assert.deepEqual(await response.json(),{id:meta.id,definitionHash:meta.definitionHash,presentation:{list:{columns:[{field:'name',label:'Smoke label'}],actions:[]}}});
+    const conditional=await fetch(endpoint+'/smoke.resource'+presentationSuffix,{headers:{...headers,'If-None-Match':response.headers.get('etag')}});assert.equal(conditional.status,304);assert.equal(await conditional.text(),'');
+    assert.equal((await fetch(endpoint+'/smoke.legacy',{headers})).status,READ_STATUS.ok);
+    assert.equal((await fetch(endpoint+'/smoke.legacy'+presentationSuffix,{headers})).status,READ_STATUS.notFound);
+    assert.equal((await fetch(endpoint+'/smoke.resource'+presentationSuffix)).status,READ_STATUS.unauthorized);
+    assert.equal((await fetch(endpoint+'/smoke.resource'+presentationSuffix,{method:'POST',headers})).status,READ_STATUS.forbidden);
+    console.log(`OK: ${backend} contextual presentation proxy, identity, private cache, 304 and legacy 404.`);
+  }
   console.log('Runtime and proxy smoke tests passed (isolated mocks, no host ports).');
 })().catch(error => { console.error('Runtime/proxy smoke verification failed.'); process.exitCode = 1; });

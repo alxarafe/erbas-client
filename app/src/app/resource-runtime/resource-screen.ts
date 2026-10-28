@@ -9,10 +9,12 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subscription, switchMap, map } from 'rxjs';
 import { ResourceForm } from './resource-form';
 import {
   Action,
+  ActionTarget,
+  ContextPresentation,
   Availability,
   Field,
   Filter,
@@ -27,6 +29,12 @@ import {
   RESOURCE_PROTOCOL as P,
 } from './models';
 import { RuntimeClient, RuntimeFailure, failureMessage, translateFailure } from './runtime-client';
+import {
+  contextActions,
+  CONTEXT_SCOPES,
+  resolveForm,
+  resolveColumns,
+} from './contextual-presentation';
 import { orderedFields, scalarInput } from './fields';
 @Component({
   selector: 'app-generic-resource',
@@ -37,6 +45,7 @@ export class ResourceScreen {
   readonly resource = input.required<string>();
   readonly client = inject(RuntimeClient);
   readonly meta = signal<Metadata | null>(null);
+  readonly contexts = signal<ContextPresentation | undefined>(undefined);
   readonly page = signal<Page | null>(null);
   readonly error = signal<RuntimeFailure | null>(null);
   readonly busy = signal(false);
@@ -46,6 +55,14 @@ export class ResourceScreen {
   readonly deleting = signal<Row | null>(null);
   readonly action = signal<Action | null>(null);
   readonly availability = signal<Availability[]>([]);
+  readonly listAvailability = signal<Availability[]>([]);
+  readonly selection = signal<Row[]>([]);
+  readonly listActions = computed(() =>
+    this.meta() ? contextActions(this.meta()!, 'list', this.contexts()?.list?.actions) : [],
+  );
+  readonly hasSelectionActions = computed(() =>
+    this.listActions().some((action) => action.scope === 'SELECTION'),
+  );
   readonly fieldErrors = signal<Record<string, string>>({});
   readonly query = signal<Query>({ offset: 0, limit: P.pageSize, sort: [], filters: [] });
   readonly filters = signal<
@@ -56,15 +73,20 @@ export class ResourceScreen {
   readonly allowed = allowed;
   readonly failureMessage = failureMessage;
   readonly orderedFields = orderedFields;
-  readonly formFields = computed(() => (this.meta() ? orderedFields(this.meta()!) : []));
+  readonly mode = computed(() =>
+    this.viewing() ? ('view' as const) : this.selected() ? ('edit' as const) : ('create' as const),
+  );
+  readonly form = computed(() =>
+    this.meta() ? resolveForm(this.meta()!, this.contexts(), this.mode()) : { fields: [] },
+  );
+  readonly formFields = computed(() => this.form().fields);
+  readonly scopes = computed(() => CONTEXT_SCOPES[this.mode()]);
   readonly presentedActions = computed(() =>
-    this.selected()
-      ? (this.meta()?.actions.filter((action) => action.scope === 'ENTITY' && action.authorized) ??
-        [])
-      : [],
+    this.meta() ? contextActions(this.meta()!, this.mode()) : [],
   );
   readonly parameterFields = computed(() => (this.action() ? this.parameters(this.action()!) : []));
   private requests = new Subscription();
+  private listRequests = new Subscription();
   private loadRequest?: Subscription;
   constructor() {
     effect(() => {
@@ -72,13 +94,17 @@ export class ResourceScreen {
         key = this.client.key();
       untracked(() => {
         this.requests.unsubscribe();
+        this.listRequests.unsubscribe();
         this.requests = new Subscription();
         this.loadRequest?.unsubscribe();
         this.error.set(null);
         this.fieldErrors.set({});
         this.availability.set([]);
+        this.listAvailability.set([]);
+        this.selection.set([]);
         this.busy.set(false);
         this.meta.set(null);
+        this.contexts.set(undefined);
         this.page.set(null);
         this.selected.set(null);
         this.editing.set(false);
@@ -89,18 +115,27 @@ export class ResourceScreen {
         this.filters.set([]);
         if (!key) return;
         this.requests.add(
-          this.client.metadata(resource).subscribe({
-            next: (meta) => {
-              this.meta.set(meta);
-              this.load();
-            },
-            error: (error) => this.failed(error),
-          }),
+          this.client
+            .metadata(resource)
+            .pipe(
+              switchMap((meta) =>
+                this.client.presentation(meta).pipe(map((document) => ({ meta, document }))),
+              ),
+            )
+            .subscribe({
+              next: ({ meta, document }) => {
+                this.contexts.set(document?.presentation);
+                this.meta.set(meta);
+                this.load();
+              },
+              error: (error) => this.representationFailed(error),
+            }),
         );
       });
     });
     inject(DestroyRef).onDestroy(() => {
       this.requests.unsubscribe();
+      this.listRequests.unsubscribe();
       this.loadRequest?.unsubscribe();
     });
   }
@@ -109,28 +144,36 @@ export class ResourceScreen {
     this.error.set(null);
     this.busy.set(true);
     this.requests.add(
-      this.client.metadata(this.resource(), true).subscribe({
-        next: (meta) => {
-          this.meta.set(meta);
-          this.busy.set(false);
-          if (!allowed(meta, 'list')) this.page.set(null);
-          else this.load();
-          if (this.selected()) this.refreshAvailability();
-        },
-        error: (error) => this.failed(error),
-      }),
+      this.client
+        .metadata(this.resource(), true)
+        .pipe(
+          switchMap((meta) =>
+            this.client.presentation(meta, true).pipe(map((document) => ({ meta, document }))),
+          ),
+        )
+        .subscribe({
+          next: ({ meta, document }) => {
+            this.contexts.set(document?.presentation);
+            this.meta.set(meta);
+            this.busy.set(false);
+            if (!allowed(meta, 'list')) this.page.set(null);
+            else this.load();
+            if (this.selected()) this.refreshAvailability();
+          },
+          error: (error) => this.representationFailed(error),
+        }),
     );
   }
   hasSearch(meta: Metadata) {
     return meta.fields.some((field) => field.capabilities.searchable);
   }
   columns(meta: Metadata) {
-    return meta.fields.filter(
-      (field) =>
-        !field.annotations.some(
-          (a) => a.vocabulary === 'UI' && a.term === 'Hidden' && a.value === true,
-        ),
-    );
+    return resolveColumns(meta, this.contexts()).map((column) => column.field);
+  }
+  columnLabel(field: Field) {
+    return resolveColumns(this.meta()!, this.contexts()).find(
+      (column) => column.field.name === field.name,
+    )!.label;
   }
   removeFilter(index: number) {
     this.filters.update((filters) => filters.filter((_, i) => i !== index));
@@ -147,6 +190,8 @@ export class ResourceScreen {
     this.loadRequest = this.client.list(meta.id, this.query()).subscribe({
       next: (page) => {
         this.page.set(page);
+        this.selection.set([]);
+        this.refreshListAvailability();
         this.busy.set(false);
       },
       error: (error) => {
@@ -240,6 +285,7 @@ export class ResourceScreen {
     this.action.set(null);
     this.fieldErrors.set({});
     this.editing.set(true);
+    this.refreshAvailability();
   }
   open(row: Row, edit: boolean) {
     const meta = this.meta()!;
@@ -306,16 +352,76 @@ export class ResourceScreen {
     );
   }
   refreshAvailability() {
-    const meta = this.meta()!,
-      id = this.selected()?.[meta.idDefinition.field];
+    const meta = this.meta()!;
     this.availability.set([]);
-    if (id === undefined || !meta.actions.some((a) => a.scope === 'ENTITY' && a.authorized)) return;
+    if (!this.presentedActions().length) return;
+    if (!this.selected()) {
+      this.requests.add(
+        this.client.actionAvailability(meta.id, { scope: 'COLLECTION' }).subscribe({
+          next: (value) => this.availability.set(value),
+          error: (error) => this.failed(error),
+        }),
+      );
+      return;
+    }
+    const id = this.selected()![meta.idDefinition.field];
+    if (id === undefined) return;
     this.requests.add(
       this.client.availability(meta.id, id).subscribe({
         next: (value) => this.availability.set(value),
         error: (error) => this.failed(error),
       }),
     );
+  }
+  toggleSelection(row: Row) {
+    this.selection.update((rows) =>
+      rows.includes(row)
+        ? rows.filter((value) => value !== row)
+        : rows.length < P.maxSelection
+          ? [...rows, row]
+          : rows,
+    );
+    this.refreshListAvailability();
+  }
+  private refreshListAvailability() {
+    this.listRequests.unsubscribe();
+    this.listRequests = new Subscription();
+    this.listAvailability.set([]);
+    for (const scope of ['COLLECTION', 'SELECTION'] as const) {
+      if (
+        !this.listActions().some((action) => action.scope === scope) ||
+        (scope === 'SELECTION' && !this.selection().length)
+      )
+        continue;
+      const target: ActionTarget =
+        scope === 'COLLECTION'
+          ? { scope }
+          : { scope, ids: this.selection().map((row) => row[this.meta()!.idDefinition.field]!) };
+      this.listRequests.add(
+        this.client.actionAvailability(this.meta()!.id, target).subscribe({
+          next: (values) => this.listAvailability.update((all) => [...all, ...values]),
+          error: (error) => this.failed(error),
+        }),
+      );
+    }
+  }
+  listActionAvailable(name: string) {
+    return this.listAvailability().some(
+      (state) => state.name === name && state.authorized && state.available,
+    );
+  }
+  private target(action: Action): ActionTarget | undefined {
+    if (action.scope === 'COLLECTION') return { scope: 'COLLECTION' };
+    if (action.scope === 'SELECTION')
+      return this.selection().length
+        ? {
+            scope: 'SELECTION',
+            ids: this.selection().map((row) => row[this.meta()!.idDefinition.field]!),
+          }
+        : undefined;
+    return this.selected()
+      ? { scope: 'ENTITY', id: this.selected()![this.meta()!.idDefinition.field]! }
+      : undefined;
   }
   available(name: string) {
     return this.availability().some((a) => a.name === name && a.authorized && a.available);
@@ -331,25 +437,35 @@ export class ResourceScreen {
   execute(parameters: Row) {
     const meta = this.meta()!,
       action = this.action(),
-      selected = this.selected();
-    if (!action || !selected) return;
+      target = action ? this.target(action) : undefined;
+    if (!action || !target) return;
+    const selected = this.selected();
     this.busy.set(true);
     this.requests.add(
-      this.client
-        .execute(meta.id, action.name, selected[meta.idDefinition.field]!, parameters)
-        .subscribe({
-          next: () => {
-            this.busy.set(false);
-            this.action.set(null);
-            this.open(selected, false);
-            this.load();
-          },
-          error: (error) => {
-            this.failed(error);
-            this.refreshAvailability();
-          },
-        }),
+      this.client.executeAction(meta.id, action.name, target, parameters).subscribe({
+        next: () => {
+          this.busy.set(false);
+          this.action.set(null);
+          if (selected) this.open(selected, false);
+          else if (this.editing()) this.refreshAvailability();
+          this.load();
+        },
+        error: (error) => {
+          this.failed(error);
+          if (this.selected() || this.editing()) this.refreshAvailability();
+          else this.refreshListAvailability();
+        },
+      }),
     );
+  }
+  private representationFailed(error: unknown) {
+    this.meta.set(null);
+    this.contexts.set(undefined);
+    this.page.set(null);
+    this.selected.set(null);
+    this.editing.set(false);
+    this.viewing.set(false);
+    this.failed(error);
   }
   private failed(error: unknown) {
     const failure = translateFailure(error);

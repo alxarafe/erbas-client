@@ -21,6 +21,9 @@ v0.13.0. Generic CRUD is the primary presentation path for standard resources;
 compiled Angular screens are explicit extensions for UX that metadata, renderers
 or registered extensions cannot reasonably express. Shared improvements to
 MANY_TO_ONE controls, layouts or themes benefit every resource using that pattern.
+Optional [contextual presentation](docs/resource-presentation-001.md) supports
+LIST/CREATE/EDIT/VIEW against the exact unpublished v0.14.0 candidate; the formal
+published pin remains v0.13.0 and legacy servers retain form/field-order rendering.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.

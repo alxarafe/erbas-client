@@ -47,6 +47,13 @@ as an explicit override/extension and escape hatch for specialized UX. Improveme
 to shared MANY_TO_ONE controls, layouts or themes must benefit all resources using
 that pattern. Do not introduce a new registry or renderer to record this policy.
 
+RESOURCE-PRESENTATION-001 consumes the separate contextual presentation endpoint
+against unpublished candidate `9919ad3725e50d63e7a19befbe0d81b4d91df0cc` and .NET
+`00d6de93450407e5709f1a7f44c673a11819c931`; the published pin remains v0.13.0.
+Validate identity before applying contexts and preserve absent versus explicit
+empty declarations. See [contextual presentation](docs/resource-presentation-001.md).
+This is presentation, not authorization or formal v0.14.0 adoption.
+
 ## Task lifecycle
 
 Obtain explicit task approval, implement only its scope, pass applicable

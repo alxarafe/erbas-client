@@ -14,6 +14,7 @@ import { BackendSelection } from '../backend-selection';
 import {
   field,
   fixtureMetadata,
+  finishLegacyPresentation,
   fixtureNavigation,
   TEST_ETAG,
   TEST_RESOURCE as R,
@@ -387,6 +388,7 @@ describe('Compiled hierarchical forms and effective metadata', () => {
     fixture.componentRef.setInput('resource', R);
     await fixture.whenStable();
     http.expectOne(base + P.metadata + '/' + R).flush(JSON.stringify(value), { headers });
+    finishLegacyPresentation(http);
     http
       .expectOne((request) => request.url === base + P.records + '/' + R)
       .flush('{"items":[{"id":"one","name":"Record","code":"CODE"}],"offset":0,"limit":50}', {
@@ -439,6 +441,7 @@ describe('Compiled hierarchical forms and effective metadata', () => {
     let request = http.expectOne(base + P.metadata + '/' + R);
     expect(request.request.headers.get(P.conditional)).toBe(TEST_ETAG);
     request.flush('', { status: HttpStatusCode.NotModified, statusText: 'Not Modified' });
+    finishLegacyPresentation(http);
     http
       .expectOne((req) => req.url === base + P.records + '/' + R)
       .flush('{"items":[],"offset":0,"limit":50}', { headers });
@@ -450,6 +453,7 @@ describe('Compiled hierarchical forms and effective metadata', () => {
     fixture.componentInstance.refreshMetadata();
     request = http.expectOne(base + P.metadata + '/' + R);
     request.flush(JSON.stringify(changed), { headers: { ...headers, ETag: '"changed"' } });
+    finishLegacyPresentation(http);
     http
       .expectOne((req) => req.url === base + P.records + '/' + R)
       .flush('{"items":[],"offset":0,"limit":50}', { headers });
@@ -462,6 +466,7 @@ describe('Compiled hierarchical forms and effective metadata', () => {
   it('switching identities never shares cached metadata/capabilities/ETags', () => {
     client.metadata(R).subscribe();
     http.expectOne(base + P.metadata + '/' + R).flush(JSON.stringify(meta()), { headers });
+    finishLegacyPresentation(http);
     session.clear();
     session.establish('java', 'restricted-token');
     session.markContextReady();

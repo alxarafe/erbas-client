@@ -1,6 +1,11 @@
 <section aria-label="Generic resource">
   @if (error(); as failure) {
     <p role="alert">{{ failureMessage(failure) }} ({{ failure.code }})</p>
+    @if (!meta()) {
+      <button type="button" [disabled]="busy()" (click)="refreshMetadata()">
+        Refresh metadata
+      </button>
+    }
   }
   @if (meta(); as meta) {
     <h2>{{ label(meta) }}</h2>
@@ -79,6 +84,20 @@
         ><button type="submit" [disabled]="busy()">Apply query</button>
       </form>
     }
+    @if (!editing() && !viewing()) {
+      <div aria-label="List actions">
+        @for (action of listActions(); track action.name) {
+          <button
+            type="button"
+            [attr.data-action]="action.name"
+            [disabled]="busy() || !listActionAvailable(action.name)"
+            (click)="this.action.set(action)"
+          >
+            {{ label(action) }}
+          </button>
+        }
+      </div>
+    }
     @if (page(); as page) {
       <p>
         Offset {{ page.offset }} · Limit {{ page.limit }} · Total {{ page.total ?? 'not supplied' }}
@@ -87,8 +106,11 @@
         <table>
           <thead>
             <tr>
+              @if (hasSelectionActions()) {
+                <th>Select</th>
+              }
               @for (field of columns(meta); track field.name) {
-                <th>{{ label(field) }}</th>
+                <th [attr.data-field]="field.name">{{ columnLabel(field) }}</th>
               }
               <th>Operations</th>
             </tr>
@@ -96,6 +118,17 @@
           <tbody>
             @for (row of page.items; track $index) {
               <tr>
+                @if (hasSelectionActions()) {
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label="Select record"
+                      [disabled]="busy() || action() !== null"
+                      [checked]="selection().includes(row)"
+                      (change)="toggleSelection(row)"
+                    />
+                  </td>
+                }
                 @for (field of columns(meta); track field.name) {
                   <td>{{ display(row[field.name]) }}</td>
                 }
@@ -139,7 +172,8 @@
       <h3>{{ selected() ? 'Edit' : 'Create' }}</h3>
       <app-resource-form
         [fields]="formFields()"
-        [presentation]="meta.presentation"
+        [presentation]="form().presentation"
+        [actionScopes]="scopes()"
         [actions]="presentedActions()"
         [availability]="availability()"
         (actionSelected)="this.action.set($event)"
@@ -154,7 +188,8 @@
     @if (viewing() && selected(); as row) {
       <app-resource-form
         [fields]="formFields()"
-        [presentation]="meta.presentation"
+        [presentation]="form().presentation"
+        [actionScopes]="scopes()"
         [record]="row"
         [readOnly]="true"
         [actions]="presentedActions()"

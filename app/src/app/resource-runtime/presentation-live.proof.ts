@@ -69,6 +69,13 @@ it('two real identities share static presentation but not navigation, capabiliti
   }
   await login(env['ERBAS_TEST_EMAIL'], env['ERBAS_TEST_PASSWORD']);
   const admin = await firstValueFrom(client.metadata(resource));
+  const adminContexts = await firstValueFrom(client.presentation(admin));
+  expect(adminContexts).not.toBeNull();
+  expect(adminContexts!.id).toBe(admin.id);
+  expect(adminContexts!.definitionHash).toBe(admin.definitionHash);
+  for (const mode of ['list', 'create', 'edit', 'view'] as const)
+    expect(Object.hasOwn(adminContexts!.presentation, mode)).toBe(true);
+  expect(await firstValueFrom(client.presentation(admin, true))).toBe(adminContexts);
   const adminNav = flatten(client.navigation()!.items);
   const row = await firstValueFrom(client.get(resource, id));
   expect(resourceComponent(resource, {})).toBe(ResourceScreen);
@@ -108,6 +115,13 @@ it('two real identities share static presentation but not navigation, capabiliti
   expect(client.navigation()).toBe(null);
   await login(env['ERBAS_RESTRICTED_EMAIL'], env['ERBAS_RESTRICTED_PASSWORD']);
   const restricted = await firstValueFrom(client.metadata(resource));
+  await expect(firstValueFrom(client.presentation(admin))).rejects.toMatchObject({
+    code: 'invalid_response',
+  });
+  const restrictedContexts = await firstValueFrom(client.presentation(restricted));
+  expect(restrictedContexts).not.toBe(adminContexts);
+  expect(restrictedContexts!.presentation).toEqual(adminContexts!.presentation);
+  expect(await firstValueFrom(client.presentation(restricted, true))).toBe(restrictedContexts);
   expect(stringifyExact(restricted.fields)).toBe(stringifyExact(admin.fields));
   expect(stringifyExact(restricted.presentation)).toBe(stringifyExact(admin.presentation));
   for (const op of ['create', 'update', 'delete'] as const)

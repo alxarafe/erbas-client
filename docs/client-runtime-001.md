@@ -13,6 +13,14 @@ features; navigation failure is reported without inventing a replacement menu.
 > Specific Angular components are reserved for UX that cannot reasonably be
 > expressed through metadata, renderers or registered extensions.
 
+## Contextual presentation extension
+
+[RESOURCE-PRESENTATION-001](resource-presentation-001.md) adds strict, separately
+cached LIST/CREATE/EDIT/VIEW recommendations against an exact unpublished candidate.
+It preserves this published pin, generic routing and backend query/authorization
+semantics. Explicit forms select exact subsets; legacy form/field-order fallback
+continues only for absent contexts or the permitted legacy endpoint 404.
+
 ## Published adoption verification
 
 Both existing live component proofs and the bounded Chromium procedure were rerun
@@ -39,13 +47,13 @@ RuntimeClient caches the tree and ETag in memory. Explicit revalidation sends
 If-None-Match; Angular's non-success-path 304 is handled explicitly and preserves
 the cached body. Logout clears context, hides cached data immediately and cancels
 protected requests. Backend switching establishes a new context. Context epochs
-scope both navigation and metadata, including equal-looking menus for different
+scope navigation, metadata and contextual presentation, including equal-looking menus for different
 sessions. Stale responses cannot populate a replacement context.
 
 There is no tenant selector in the current client or new context-selection
 protocol in this task. A future context selector must call
 `AuthSession.contextChanged()` after establishing its server context; this clears
-and reloads navigation and metadata. Tests exercise this explicit boundary. Server
+and reloads navigation, metadata and contextual presentation. Tests exercise this explicit boundary. Server
 changes outside the client remain authoritative on every request; there is no
 server-push subscription or per-route polling.
 
@@ -88,7 +96,9 @@ Optional absent totals are displayed as unavailable and next-page behavior uses
 returned page size. Invalid queries retain the common 400 semantics.
 
 ResourceForm reuses existing FieldRendererOutlet/theme controls and manual form
-submission conventions. Form presentation field order and Common.Label are used;
+submission conventions. Form presentation is resolved by CREATE/EDIT/VIEW before
+rendering; LIST columns use their own order/labels. Common.Label supplies field
+labels, with contextual list labels taking precedence;
 remaining fields fall back to metadata order. UI.Hidden/FormExcluded hints affect
 forms; UI.Hidden affects table display. Required, nullable, defaults, readOnly,
 immutable and enum metadata are interpreted. Text length and scalar representation

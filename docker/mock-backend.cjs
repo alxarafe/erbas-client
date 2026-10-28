@@ -47,10 +47,30 @@ function validAiMessage(message) {
   }
   return /\S/u.test(message);
 }
+const METADATA_ENDPOINT = '/api/meta/resources';
+const PRESENTATION_SUFFIX = '/presentation';
+const CONTEXT_RESOURCE = 'smoke.resource', LEGACY_RESOURCE = 'smoke.legacy';
+const DEFINITION_HASH = 'smoke-definition';
 let checks = 0;
 let aiInvocations = 0;
 http.createServer((req, res) => {
   const aiUrl = new URL(req.url, 'http://mock');
+  if (aiUrl.pathname.startsWith(METADATA_ENDPOINT + '/')) {
+    const reply = (status, body, headers = {}) => { res.writeHead(status, {'Content-Type':'application/json','Cache-Control':'no-store',...headers});res.end(body === undefined ? undefined : JSON.stringify(body)); };
+    const fail = (status, code) => reply(status,{code,errors:[{code}]},status === READ_STATUS.unauthorized ? {'WWW-Authenticate':'Bearer'} : {});
+    if (![ADMIN_BEARER, REGULAR_BEARER].includes(req.headers.authorization)) {fail(READ_STATUS.unauthorized,'unauthorized');return;}
+    if (req.method !== 'GET' || aiUrl.search) {fail(READ_STATUS.invalidRequest,'invalid_request');return;}
+    const resource = aiUrl.pathname.slice((METADATA_ENDPOINT+'/').length).split('/')[0];
+    if (![CONTEXT_RESOURCE,LEGACY_RESOURCE].includes(resource)) {fail(READ_STATUS.notFound,'resource_not_found');return;}
+    const path = METADATA_ENDPOINT+'/'+resource, contextual = aiUrl.pathname === path+PRESENTATION_SUFFIX;
+    if ((aiUrl.pathname !== path && !contextual) || (contextual && resource === LEGACY_RESOURCE)) {fail(READ_STATUS.notFound,'resource_not_found');return;}
+    const headers = {'Cache-Control':'private, no-cache',Vary:'Authorization',ETag:JSON.stringify(DEFINITION_HASH)};
+    if (req.headers['if-none-match'] === headers.ETag) {reply(304,undefined,headers);return;}
+    if (contextual) {reply(READ_STATUS.ok,{id:resource,definitionHash:DEFINITION_HASH,presentation:{list:{columns:[{field:'name',label:'Smoke label'}],actions:[]}}},headers);return;}
+    const field={name:'name',type:'STRING',nullable:false,required:true,readOnly:false,immutable:false,constraints:{},capabilities:{filterable:true,sortable:true,searchable:true,filterOperators:['eq']},enumValues:[],annotations:[]};
+    reply(READ_STATUS.ok,{id:resource,definitionHash:DEFINITION_HASH,version:'1',moduleId:'smoke',moduleEnabled:true,idDefinition:{field:'name'},fields:[field],relations:[],actions:[],annotations:[],operations:Object.fromEntries(['list','get','create','update','delete'].map(op=>[op,{declared:true,authorized:true}]))},headers);return;
+  }
+
   if (aiUrl.pathname === AI_ENDPOINT) {
     const reply = (status, body, headers = {}) => {
       res.writeHead(status, {

@@ -2,12 +2,14 @@ import { ExactNumber, safeInteger } from './exact-json';
 export const RESOURCE_PROTOCOL = {
   navigation: '/api/meta/navigation',
   metadata: '/api/meta/resources',
+  presentation: '/presentation',
   records: '/api/resources',
   actions: '/api/resource-actions',
   etag: 'ETag',
   conditional: 'If-None-Match',
   pageSize: 50,
   maxLimit: 100,
+  maxSelection: 100,
 } as const;
 export type Scalar = string | boolean | ExactNumber | null;
 export type Row = Record<string, Scalar>;
@@ -76,6 +78,19 @@ export interface FormTab {
 export interface Presentation {
   form: { behavior: { unsavedChanges: string }; actions: string[]; tabs: FormTab[] };
 }
+export type FormPresentation = Presentation['form'];
+export type FormMode = 'create' | 'edit' | 'view';
+export interface ContextPresentation {
+  list?: { columns: { field: string; label?: string }[]; actions: string[] };
+  create?: FormPresentation;
+  edit?: FormPresentation;
+  view?: FormPresentation;
+}
+export interface PresentationDocument {
+  id: string;
+  definitionHash: string;
+  presentation: ContextPresentation;
+}
 export interface Metadata {
   id: string;
   version: string;
@@ -108,6 +123,8 @@ export interface Query {
   filters: Filter[];
   search?: string;
 }
+export type ActionTarget =
+  { scope: 'COLLECTION' } | { scope: 'ENTITY'; id: Scalar } | { scope: 'SELECTION'; ids: Scalar[] };
 export interface Availability {
   name: string;
   authorized: boolean;
@@ -184,7 +201,9 @@ export function metadata(value: unknown, resource: string): Metadata {
     !Array.isArray(value['relations']) ||
     !Array.isArray(value['actions']) ||
     !Array.isArray(value['annotations']) ||
-    typeof value['moduleEnabled'] !== 'boolean'
+    typeof value['moduleEnabled'] !== 'boolean' ||
+    typeof value['definitionHash'] !== 'string' ||
+    !value['definitionHash']
   )
     throw new Error('Invalid resource metadata');
   for (const operation of ['list', 'get', 'create', 'update', 'delete']) {

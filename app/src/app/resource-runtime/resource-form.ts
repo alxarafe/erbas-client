@@ -35,11 +35,12 @@ export class ResourceForm {
   readonly presentation = input<Presentation>();
   readonly readOnly = input(false);
   readonly actions = input<Action[]>([]);
+  readonly actionScopes = input<readonly Action['scope'][]>(['ENTITY']);
   readonly availability = input<Availability[]>([]);
   readonly actionSelected = output<Action>();
   readonly idPrefix = input('resource');
   readonly fields = input.required<Field[]>();
-  readonly renderedFields = computed(() => this.fields().filter(visibleField));
+  readonly renderedFields = computed(() => this.fields().filter((field) => visibleField(field)));
   readonly relations = input<Relation[]>([]);
   readonly record = input<Row | null>(null);
   readonly busy = input(false);

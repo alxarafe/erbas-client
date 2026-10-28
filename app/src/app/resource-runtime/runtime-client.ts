@@ -13,7 +13,9 @@ import { BackendSelection } from '../backend-selection';
 import { ExactNumber, parseExact, stringifyExact } from './exact-json';
 import {
   Availability,
+  ActionTarget,
   Metadata,
+  PresentationDocument,
   Navigation,
   Query,
   RESOURCE_PROTOCOL as P,
@@ -25,6 +27,7 @@ import {
   page,
   row,
 } from './models';
+import { presentationDocument } from './contextual-presentation';
 import { USER_HTTP } from '../users-client';
 export interface ErrorDetail {
   code: string;
@@ -100,6 +103,16 @@ export class RuntimeClient {
   );
   private readonly reset = new Subject<void>();
   private cache = new Map<string, { key: string; etag: string | null; meta: Metadata }>();
+  private metadataVersions = new Map<string, number>();
+  private presentations = new Map<
+    string,
+    { key: string; hash: string; etag: string | null; value: PresentationDocument | null }
+  >();
+  invalidateMetadata(resource: string): void {
+    this.metadataVersions.set(resource, (this.metadataVersions.get(resource) ?? 0) + 1);
+    this.cache.delete(resource);
+    this.presentations.delete(resource);
+  }
   private readonly nav = signal<{ key: string; etag: string | null; value: Navigation } | null>(
     null,
   );
@@ -114,6 +127,8 @@ export class RuntimeClient {
       const key = this.key();
       this.reset.next();
       this.cache.clear();
+      this.presentations.clear();
+      this.metadataVersions.clear();
       this.nav.set(null);
       this.error.set(null);
       if (key) untracked(() => this.revalidateNavigation());
@@ -139,6 +154,7 @@ export class RuntimeClient {
       .subscribe({ error: (error) => this.error.set(translateFailure(error)) });
   }
   metadata(resource: string, revalidate = false): Observable<Metadata> {
+    const version = this.metadataVersions.get(resource) ?? 0;
     const stored = this.cache.get(resource);
     const cached = stored?.key === this.key() ? stored : undefined;
     if (cached && !revalidate) return of(cached.meta);
@@ -149,13 +165,63 @@ export class RuntimeClient {
       cached?.etag,
     ).pipe(
       map((response) => {
+        if ((this.metadataVersions.get(resource) ?? 0) !== version)
+          throw new Error('Metadata invalidated');
         if (response.status === HttpStatusCode.NotModified) {
           if (!cached) throw new Error('Uncached metadata 304');
           return cached.meta;
         }
         const meta = metadata(parseExact(response.body ?? ''), resource);
+        if (cached && cached.meta.definitionHash !== meta.definitionHash)
+          this.presentations.delete(resource);
         this.cache.set(resource, { key: this.key()!, meta, etag: response.headers.get(P.etag) });
         return meta;
+      }),
+    );
+  }
+  presentation(meta: Metadata, revalidate = false): Observable<PresentationDocument | null> {
+    const key = this.key();
+    const current = this.cache.get(meta.id);
+    if (!key || current?.key !== key || current.meta !== meta)
+      return throwError(() => new RuntimeFailure(0, 'invalid_response'));
+    const stored = this.presentations.get(meta.id);
+    const cached = stored?.key === key && stored.hash === meta.definitionHash ? stored : undefined;
+    if (cached && !revalidate) return of(cached.value);
+    return this.request(
+      'GET',
+      P.metadata + '/' + encodeURIComponent(meta.id) + P.presentation,
+      undefined,
+      cached?.etag,
+    ).pipe(
+      map((response) => {
+        if (this.cache.get(meta.id) !== current) throw new Error('Metadata invalidated');
+        if (response.status === HttpStatusCode.NotModified) {
+          if (!cached || !cached.value) throw new Error('Uncached presentation 304');
+          return cached.value;
+        }
+        const value = presentationDocument(parseExact(response.body ?? ''), meta);
+        const etag = response.headers.get(P.etag);
+        if (!etag || !/^(?:W\/)?"[^"\r\n]+"$/.test(etag))
+          throw new Error('Invalid presentation ETag');
+        this.presentations.set(meta.id, { key, hash: meta.definitionHash, etag, value });
+        return value;
+      }),
+      catchError((error) => {
+        if (
+          error instanceof RuntimeFailure &&
+          error.status === HttpStatusCode.NotFound &&
+          this.cache.get(meta.id) === current
+        ) {
+          this.presentations.set(meta.id, {
+            key,
+            hash: meta.definitionHash,
+            etag: null,
+            value: null,
+          });
+          return of(null);
+        }
+        if (this.cache.get(meta.id) === current) this.invalidateMetadata(meta.id);
+        return throwError(() => translateFailure(error));
       }),
     );
   }
@@ -183,10 +249,14 @@ export class RuntimeClient {
     return this.request('DELETE', this.records(resource, id));
   }
   availability(resource: string, id: Scalar): Observable<Availability[]> {
-    return this.request('POST', P.actions + '/' + encodeURIComponent(resource) + '/availability', {
-      scope: 'ENTITY',
-      id,
-    }).pipe(
+    return this.actionAvailability(resource, { scope: 'ENTITY', id });
+  }
+  actionAvailability(resource: string, target: ActionTarget): Observable<Availability[]> {
+    return this.request(
+      'POST',
+      P.actions + '/' + encodeURIComponent(resource) + '/availability',
+      target,
+    ).pipe(
       map((r) => {
         const value = parseExact(r.body ?? '');
         if (
@@ -205,6 +275,9 @@ export class RuntimeClient {
     );
   }
   execute(resource: string, action: string, id: Scalar, parameters: Row) {
+    return this.executeAction(resource, action, { scope: 'ENTITY', id }, parameters);
+  }
+  executeAction(resource: string, action: string, target: ActionTarget, parameters: Row) {
     return this.request(
       'POST',
       P.actions +
@@ -213,7 +286,14 @@ export class RuntimeClient {
         '/' +
         encodeURIComponent(action) +
         '/execute',
-      { target: { id }, parameters },
+      {
+        ...(target.scope === 'ENTITY'
+          ? { target: { id: target.id } }
+          : target.scope === 'SELECTION'
+            ? { target: { ids: target.ids } }
+            : {}),
+        parameters,
+      },
     );
   }
   private records(resource: string, id?: Scalar): string {

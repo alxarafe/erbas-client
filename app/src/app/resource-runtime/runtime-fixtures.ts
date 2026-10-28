@@ -2,7 +2,7 @@ import type { HttpTestingController } from '@angular/common/http/testing';
 import { HttpStatusCode } from '@angular/common/http';
 import { RESOURCE_PROTOCOL } from './models';
 // Neutral synthetic contract fixtures, not resource-specific application screens.
-import { Field, Metadata, Navigation } from './models';
+import { Field, Metadata, Navigation, FormPresentation } from './models';
 export const TEST_RESOURCE = 'catalogue';
 export const TEST_ETAG = '"fixture-version"';
 export function field(
@@ -108,4 +108,35 @@ export function finishLegacyNavigation(http: HttpTestingController): void {
         { status: HttpStatusCode.NotFound, statusText: 'Not Found' },
       ),
     );
+}
+
+// A valid legacy metadata response may be followed by a missing additive endpoint.
+export function finishLegacyPresentation(http: HttpTestingController): void {
+  for (const request of http.match((request) =>
+    request.url.endsWith(RESOURCE_PROTOCOL.presentation),
+  ))
+    if (!request.cancelled)
+      request.flush('', { status: HttpStatusCode.NotFound, statusText: 'Not Found' });
+}
+
+export function fixtureForm(...fields: string[]): FormPresentation {
+  return {
+    behavior: { unsavedChanges: 'CONFIRM_DISCARD' },
+    actions: [],
+    tabs: [
+      {
+        id: 'main',
+        actions: [],
+        sections: [
+          {
+            id: 'main',
+            collapsible: false,
+            initiallyCollapsed: false,
+            actions: [],
+            groups: [{ id: 'main', fields }],
+          },
+        ],
+      },
+    ],
+  };
 }

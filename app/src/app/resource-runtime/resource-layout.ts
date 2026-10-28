@@ -33,9 +33,10 @@ export function projectLayout(
   fields: readonly Field[],
   presentation: Presentation | undefined,
   actions: readonly Action[],
+  scopes: readonly Action['scope'][] = ['ENTITY'],
 ): Layout {
-  fields = fields.filter(visibleField);
-  actions = actions.filter((action) => action.scope === 'ENTITY' && action.authorized);
+  fields = fields.filter((field) => visibleField(field));
+  actions = actions.filter((action) => scopes.includes(action.scope) && action.authorized);
   const byName = new Map(fields.map((field) => [field.name, field]));
   const placedFields = new Set<string>();
   const placedActions = new Set<string>();
@@ -86,12 +87,13 @@ export class ResourceLayout {
   readonly fields = input.required<Field[]>();
   readonly presentation = input<Presentation>();
   readonly actions = input<Action[]>([]);
+  readonly actionScopes = input<readonly Action['scope'][]>(['ENTITY']);
   readonly availability = input<Availability[]>([]);
   readonly busy = input(false);
   readonly fieldTemplate = input.required<TemplateRef<{ $implicit: Field }>>();
   readonly actionSelected = output<Action>();
   readonly layout = computed(() =>
-    projectLayout(this.fields(), this.presentation(), this.actions()),
+    projectLayout(this.fields(), this.presentation(), this.actions(), this.actionScopes()),
   );
   readonly chosenTab = signal<string | null>(null);
   readonly activeTab = computed(

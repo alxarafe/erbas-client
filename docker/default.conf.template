@@ -12,7 +12,7 @@ map $request_uri $user_detail_upstream {
 # Only the contracted generic routes; keep encoded opaque IDs and query grammar.
 map $request_uri $resource_path {
     default "";
-    ~^/backends/(?:java|dotnet)(/api/(?:meta/(?:navigation|resources)(?:/[^/?]+)?|resources/[^/?]+(?:/[^/?]+)?|resource-actions/[^/?]+/(?:availability|[^/?]+/execute)))(?:\?.*)?$ $1;
+    ~^/backends/(?:java|dotnet)(/api/(?:meta/(?:navigation|resources)(?:/[^/?]+)?|meta/resources/[^/?]+/presentation|resources/[^/?]+(?:/[^/?]+)?|resource-actions/[^/?]+/(?:availability|[^/?]+/execute)))(?:\?.*)?$ $1;
 }
 map $request_uri $resource_upstream {
     default "";
@@ -21,6 +21,7 @@ map $request_uri $resource_upstream {
 }
 map "$request_method:$request_uri" $resource_allowed {
     default 0;
+    ~^GET:/backends/(?:java|dotnet)/api/meta/resources/[^/?]+/presentation(?:\?.*)?$ 1;
     ~^GET:/backends/(?:java|dotnet)/api/meta/(?:navigation|resources)(?:/[^/?]+)?(?:\?.*)?$ 1;
     ~^(?:GET|POST):/backends/(?:java|dotnet)/api/resources/[^/?]+(?:\?.*)?$ 1;
     ~^(?:GET|PATCH|DELETE):/backends/(?:java|dotnet)/api/resources/[^/?]+/[^/?]+(?:\?.*)?$ 1;

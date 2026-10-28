@@ -14,7 +14,9 @@ Java compatibility with the new operations is not claimed before adoption.
 
 Improvements to shared MANY_TO_ONE controls, layouts or themes must benefit all
 resources using those patterns. This consolidation adds no renderers, themes,
-registry, field-level permissions or separate CREATE/EDIT layouts.
+registry or field-level permissions. [RESOURCE-PRESENTATION-001](resource-presentation-001.md)
+now adds separate CREATE/EDIT/VIEW recommendations and LIST columns against the
+exact unpublished candidate, reusing these primitives without changing the v0.13.0 pin.
 
 In v0.13.0, field presentation is static; CRUD capabilities, actions and navigation
 are effective per user/context. Field-level authorization is outside this version.
@@ -54,7 +56,7 @@ refresh; if it disappears, the first surviving tab is used. Inactive panels are
 hidden without discarding their fields. Native details/summary sections honor
 collapsible/initiallyCollapsed; ordinary sections and fieldsets preserve labels.
 
-Projection resolves only known, visible form fields. First placement wins for a
+Legacy projection resolves only known, visible form fields. First placement wins for a
 duplicate reference; unknown references are ignored. Unassigned visible fields are
 appended exactly once in an Other fields area, in remaining metadata field order.
 Without presentation, the existing flat Details form remains. Empty groups are
@@ -63,22 +65,31 @@ An action-only container is not empty while it has an eligible action.
 UI.Hidden/FormExcluded fields are neither rendered in generic forms nor collected
 into a form mutation; those hints do not create backend field authorization.
 
-The current .NET definition validator requires every visible field to be placed
-when a layout exists. Therefore the real Asset declaration places all fields;
+Contextual documents are validated strictly before projection: unknown/repeated
+references, duplicate container IDs, invalid scopes and unknown properties are
+errors, not ignored hints. An explicit form supplies exactly its declared subset;
+omitted fields are never appended and an empty form remains empty. See
+[context selection and identity](resource-presentation-001.md).
+
+The .NET legacy definition validator requires every visible field to be placed
+when a legacy layout exists; contextual definitions may intentionally select subsets. Therefore the real Asset declaration places all fields;
 incomplete-layout fallback is deliberately proven with client contract fixtures.
 No validator was weakened to manufacture a backend fallback example.
 
 ## Actions and effective capability projection
 
-The screen passes existing action DTOs; layout projection accepts authorized ENTITY
-actions only. Contracted form, tab and section action references determine placement.
-Unplaced eligible actions appear in a fallback action area; duplicate references do
-not create duplicate controls. Unknown, unauthorized and unsupported-scope action
-references are ignored. Contextual availability is fetched for the selected entity;
-authorized but unavailable actions remain disabled in their declared location.
-Execution still rechecks everything on the backend. The existing parameter form
-and generic action execution/refresh path remain intact. Action parameter controls
-have a separate ID prefix to avoid collisions with resource fields.
+The screen projects existing effective action DTOs by mode: CREATE uses COLLECTION,
+EDIT/VIEW ENTITY, and LIST COLLECTION/SELECTION. Form/tab/section references organize
+form actions; LIST has ordered placements followed by unplaced eligible actions.
+Unauthorized actions never appear and unavailable actions remain disabled.
+Selection actions use explicit selected record IDs; no entity target is manufactured
+for CREATE. Contextual scope/reference errors are rejected before rendering.
+Legacy layouts retain defensive projection of unknown/duplicate references.
+
+Availability uses the existing scoped action protocol. Execution rechecks authority
+on the backend; the shared parameter form and action execution/refresh path remain.
+Action parameter controls have a separate ID prefix to avoid collisions with resource
+fields. These placements do not introduce action scopes or field permissions.
 
 Create/edit/delete controls consume declared/authorized operation capabilities and
 module state. An administrator may edit writable fields; a read-only user opens the
@@ -131,6 +142,11 @@ permission definitions or production data.
 ### Real HTTP/component proof
 
 `presentation-live.proof.ts` is explicit opt-in, like the preceding runtime proof.
+Its current extension also requires the contextual endpoint and all four
+contexts from .NET `00d6de93450407e5709f1a7f44c673a11819c931`, validates identity,
+rejects prior-session metadata and revalidates presentation for both identities.
+See [candidate status and current proof](resource-presentation-001.md). Earlier
+published-adoption evidence used the proof source at that stated revision.
 It uses existing Angular/Vitest/JSDOM, real HttpClient fetch through production
 Nginx and real .NET/PostgreSQL. It checks shared static fields/layout, admin edit,
 restricted viewing, navigation differences, cache separation and direct forbidden
@@ -221,7 +237,7 @@ Browser evidence:
   removed afterwards; deletion was verified. Existing development services/data
   remained available.
 
-### Original verification and remaining limits
+### Original verification and limits at that time
 
 Verification completed:
 

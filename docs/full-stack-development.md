@@ -32,7 +32,19 @@ extensions. Shared MANY_TO_ONE, layout and theme improvements benefit every
 resource using the pattern; resource-specific screens are not the default path.
 See [presentation metadata](client-runtime-002.md) for static layouts and effective
 operation-level UI. This policy introduces no new registry, renderer, API, field
-permission model or separate CREATE/EDIT layouts.
+permission model. [RESOURCE-PRESENTATION-001](resource-presentation-001.md) separately
+adds contextual layouts using an exact unpublished candidate, without changing
+published adoption.
+
+## Contextual candidate implementation
+
+The client also implements RESOURCE-PRESENTATION-001 against unpublished contract
+candidate `9919ad3725e50d63e7a19befbe0d81b4d91df0cc`, with .NET implementation
+`00d6de93450407e5709f1a7f44c673a11819c931`. Both still formally adopt v0.13.0.
+No v0.14.0 publication or Java adoption is implied. See
+[contextual presentation and real proof](resource-presentation-001.md).
+The published-adoption verification below remains historical evidence for its
+stated revisions; the contextual proof is a separate development result.
 
 ## Published adoption verification
 

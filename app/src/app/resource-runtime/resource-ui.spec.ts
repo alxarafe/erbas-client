@@ -23,6 +23,7 @@ import { BackendSelection } from '../backend-selection';
 import {
   field,
   fixtureMetadata,
+  finishLegacyPresentation,
   fixtureNavigation,
   TEST_RESOURCE as R,
   TEST_ETAG,
@@ -100,6 +101,7 @@ describe('Compiled generic screens and menu', () => {
     http
       .expectOne(base + P.metadata + '/' + R)
       .flush(JSON.stringify(fixtureMetadata()), { headers });
+    finishLegacyPresentation(http);
     const request = http.expectOne((r) => r.url === base + P.records + '/' + R);
     expect(request.request.params.get('offset')).toBe('0');
     request.flush(
@@ -120,6 +122,7 @@ describe('Compiled generic screens and menu', () => {
     fixture.componentRef.setInput('resource', R);
     await fixture.whenStable();
     http.expectOne(base + P.metadata + '/' + R).flush(JSON.stringify(meta), { headers });
+    finishLegacyPresentation(http);
     http
       .expectOne((request) => request.url === base + P.records + '/' + R)
       .flush(
@@ -168,6 +171,7 @@ describe('Compiled generic screens and menu', () => {
     http
       .expectOne(base + P.metadata + '/' + R)
       .flush(JSON.stringify(fixtureMetadata()), { headers });
+    finishLegacyPresentation(http);
     http
       .expectOne((request) => request.url === base + P.records + '/' + R)
       .flush('{"items":[],"offset":0,"limit":50}', { headers });
@@ -199,6 +203,7 @@ describe('Compiled generic screens and menu', () => {
     http
       .expectOne(base + P.metadata + '/' + R)
       .flush(JSON.stringify(fixtureMetadata()), { headers });
+    finishLegacyPresentation(http);
     http
       .expectOne((request) => request.url === base + P.records + '/' + R)
       .flush('{"items":[],"offset":0,"limit":50}', { headers });
@@ -217,6 +222,7 @@ describe('Compiled generic screens and menu', () => {
     http
       .expectOne(base + P.metadata + '/' + R)
       .flush(JSON.stringify(fixtureMetadata()), { headers });
+    finishLegacyPresentation(http);
     http
       .expectOne((request) => request.url === base + P.records + '/' + R)
       .flush('{"items":[],"offset":0,"limit":50}', { headers });
@@ -228,6 +234,7 @@ describe('Compiled generic screens and menu', () => {
     http
       .expectOne(base + P.metadata + '/' + R)
       .flush(JSON.stringify(fixtureMetadata()), { headers });
+    finishLegacyPresentation(http);
     http
       .expectOne((request) => request.url === base + P.records + '/' + R)
       .flush('{"items":[{"id":"old"}],"offset":0,"limit":50}', { headers });
