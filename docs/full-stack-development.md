@@ -28,6 +28,34 @@ do not substitute another Compose invocation. `demo-up` validates all three
 `bin/up` scripts before starting anything. `demo-down` similarly validates all
 three `bin/down` scripts before stopping anything.
 
+## Reproducible client checks
+
+`./bin/check` uses the same Dockerfile as CI. The dependency stage pins the
+Node/Alpine image by version and multi-platform digest, and installs the exact
+npm version declared by `app/package.json` (`packageManager`). Application
+packages remain installed exclusively with `npm ci` from the committed lockfile.
+
+Rolldown declares its native bindings as optional dependencies. npm can report a
+successful install even when downloading or extracting one fails; merely using
+`--include=optional` does not make such errors fatal. The Docker installer first
+caches the locked Rolldown artifacts for the current OS, CPU and libc as mandatory
+operations, then uses `npm ci --include=optional --prefer-offline`. It loads every
+locked Rolldown instance before Docker can cache the dependency layer. A failed
+artifact download, integrity check or native load therefore fails the build.
+There are no application dependency upgrades, platform-specific declarations or
+retry loops. Other platforms' bindings stay in the lockfile.
+
+To validate without reusing a dependency layer or host npm state:
+
+```bash
+docker build --no-cache --target dependencies .
+./bin/check
+```
+
+Repeat both commands for an independent fresh installation. Immutable base image
+layers may be reused; dependency installation runs again without cache mounts.
+These checks use isolated HTTP fixtures and do not establish backend conformance.
+
 ## Quick start
 
 From `erbas-client`:
