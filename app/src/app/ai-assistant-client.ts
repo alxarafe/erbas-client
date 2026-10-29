@@ -40,10 +40,9 @@ export interface AiAssistantInvocationRequest {
   readonly message: string;
 }
 
-export interface AiAssistantToolUsage {
-  readonly capabilityId: string;
-  readonly invocationId: string;
-}
+export type AiAssistantToolUsage =
+  | { readonly capabilityId: string; readonly primitiveId?: never; readonly invocationId: string }
+  | { readonly primitiveId: string; readonly capabilityId?: never; readonly invocationId: string };
 
 export interface AiAssistantInvocation {
   readonly invocationId: string;
@@ -67,10 +66,12 @@ export class AiAssistantFailureError extends Error {
 
 const REQUEST_FIELDS = ['message'];
 const INVOCATION_FIELDS = ['invocationId', 'answer', 'toolsUsed'];
-const TOOL_FIELDS = ['capabilityId', 'invocationId'];
+const CAPABILITY_TOOL_FIELDS = ['capabilityId', 'invocationId'];
+const PRIMITIVE_TOOL_FIELDS = ['primitiveId', 'invocationId'];
 const ERROR_FIELDS = ['code', 'errors'];
 const ERROR_DETAIL_OPTIONAL_FIELDS = ['resource', 'resourceId', 'path'];
-const CAPABILITY_ID_PATTERN =
+// Published v0.14.0 gives capability and READ primitive IDs the same grammar.
+const TOOL_ID_PATTERN =
   /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\s\S])/;
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -117,10 +118,13 @@ export function isAiAssistantInvocationRequest(
 function validToolUsage(value: unknown): value is AiAssistantToolUsage {
   return (
     object(value) &&
-    keys(value, TOOL_FIELDS) &&
-    typeof value['capabilityId'] === 'string' &&
-    CAPABILITY_ID_PATTERN.test(value['capabilityId']) &&
-    nonemptyString(value['invocationId'])
+    nonemptyString(value['invocationId']) &&
+    ((keys(value, CAPABILITY_TOOL_FIELDS) &&
+      typeof value['capabilityId'] === 'string' &&
+      TOOL_ID_PATTERN.test(value['capabilityId'])) ||
+      (keys(value, PRIMITIVE_TOOL_FIELDS) &&
+        typeof value['primitiveId'] === 'string' &&
+        TOOL_ID_PATTERN.test(value['primitiveId'])))
   );
 }
 

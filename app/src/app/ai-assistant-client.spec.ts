@@ -84,6 +84,62 @@ describe('AI assistant client', () => {
     expect(next).toHaveBeenCalledExactlyOnceWith(body);
   });
 
+  it('accepts the DEMO-E2E-001 HTTP 200 READ primitive provenance', () => {
+    const body = {
+      invocationId: 'debaee97224c4d34a1637667773dab89',
+      answer: 'Tenemos 8 portátiles',
+      toolsUsed: [
+        { primitiveId: 'assets.asset-type.list', invocationId: '0fd215f3e83942ec8bde99c036248bec' },
+        { primitiveId: 'assets.asset.list', invocationId: '3db791537f4f46f9817da3013be6f30c' },
+      ],
+    };
+    const { req, next, error } = send();
+    req.flush(body, { headers, status: 200, statusText: 'OK' });
+    expect(next).toHaveBeenCalledExactlyOnceWith(body);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('accepts mixed capability and primitive provenance entries', () => {
+    const body = {
+      ...success,
+      toolsUsed: [
+        ...success.toolsUsed,
+        { primitiveId: 'assets.asset.list', invocationId: 'primitive-one' },
+      ],
+    };
+    const { req, next } = send();
+    req.flush(body, { headers });
+    expect(next).toHaveBeenCalledExactlyOnceWith(body);
+  });
+
+  it.each([
+    { primitiveId: 'assets.asset.list' },
+    { primitiveId: 'assets.asset.list', invocationId: '' },
+    { primitiveId: 'assets.asset.list', invocationId: null },
+    { primitiveId: 'assets.asset.list', invocationId: 1 },
+    { primitiveId: null, invocationId: 'primitive' },
+    { primitiveId: 1, invocationId: 'primitive' },
+    { primitiveId: '', invocationId: 'primitive' },
+    { primitiveId: 'Assets.asset.list', invocationId: 'primitive' },
+    { primitiveId: 'assets..list', invocationId: 'primitive' },
+    { primitiveId: 'assets.asset', invocationId: 'primitive' },
+    { primitiveId: 'assets.asset.list.extra', invocationId: 'primitive' },
+    { primitiveId: 'assets.asset.list\n', invocationId: 'primitive' },
+    { primitiveId: 'assets.asset.list', invocationId: 'primitive', extra: true },
+    { primitiveId: 'assets.asset.list', capabilityId: 'wms.uoms.list', invocationId: 'both' },
+    { primitiveId: 'assets.asset.list', capabilityId: null, invocationId: 'primitive' },
+    { capabilityId: 'wms.uoms.list', primitiveId: null, invocationId: 'capability' },
+    { capabilityId: null, invocationId: 'capability' },
+    { capabilityId: 1, invocationId: 'capability' },
+    { capabilityId: 'wms.uoms.list', invocationId: null },
+    { capabilityId: 'wms.uoms.list', invocationId: 1 },
+  ])('rejects malformed or ambiguous tool provenance %#', (tool) => {
+    const { req, next, error } = send();
+    req.flush({ ...success, toolsUsed: [tool] }, { headers });
+    expect(next).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.any(InvalidAiAssistantResponseError));
+  });
+
   it.each([
     null,
     [],
