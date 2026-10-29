@@ -330,6 +330,7 @@ describe('Compiled hierarchical forms and effective metadata', () => {
   it('a placed MANY_TO_ONE field retains generic lookup labels and identifier transport', async () => {
     const fixture = TestBed.createComponent(ResourceForm);
     fixture.componentRef.setInput('fields', [field('ownerId', 'UUID', true)]);
+    fixture.componentRef.setInput('record', { ownerId: 'owner-one' });
     fixture.componentRef.setInput('relations', [
       {
         name: 'owner',
@@ -357,6 +358,9 @@ describe('Compiled hierarchical forms and effective metadata', () => {
     const select = fixture.nativeElement.querySelector('#resource-ownerId') as HTMLSelectElement;
     expect(select.closest('fieldset')!.getAttribute('data-group')).toBe('names');
     expect(select.textContent).toContain('Owner label');
+    expect(select.value).toBe(JSON.stringify('owner-one'));
+    expect(select.selectedOptions[0]?.textContent).toContain('Owner label');
+    expect(select.textContent).not.toContain('Current: owner-one');
   });
   it('field labels and constraint help come from scalar metadata, not container rules', async () => {
     const fixture = await form();

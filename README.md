@@ -24,6 +24,9 @@ MANY_TO_ONE controls, layouts or themes benefit every resource using that patter
 Optional [contextual presentation](docs/resource-presentation-001.md) supports
 LIST/CREATE/EDIT/VIEW from published v0.14.0, which erbas-client formally adopts;
 legacy servers retain form/field-order rendering.
+The [application experience](docs/client-demo-001.md) separates sign-in from the
+workspace: effective sidebar navigation, current user, sign-out and an Assistant
+panel. Connection diagnostics and user administration remain secondary tools.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.
@@ -194,11 +197,11 @@ The access token is an opaque string, kept only in memory. Java and .NET issue
 different, non-interoperable tokens; each session belongs only to its issuing
 backend. Changing backend cancels pending login and discards the session, even
 when returning to the previous backend. Reloading also loses the session.
-**Clear session** discards local state only; it does not revoke the server token.
+**Sign out** discards local state only; it does not revoke the server token.
 Only the backend selection is persisted in localStorage.
 
 After login, `/api/auth/me` loads the current email, enabled and administrator
-flags. A loaded administrator profile offers **Load users** and row **View**
+flags. Under **Administration**, a loaded administrator profile offers **Load users** and row **View**
 actions; regular users remain authenticated without administrator controls.
 Backend authorization remains authoritative. **View** fetches a fresh user detail
 through `GET /api/users/{id}` with a safely encoded opaque ID. The

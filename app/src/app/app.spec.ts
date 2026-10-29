@@ -53,7 +53,7 @@ describe('Application', () => {
     await fixture.whenStable();
     expect(page.textContent).toContain('OFFLINE / ERROR');
     expect(page.textContent).not.toContain('Invalid health response');
-    page.querySelector('button')!.click();
+    page.querySelector<HTMLButtonElement>('#check-health')!.click();
     http
       .expectOne('/backends/dotnet/health')
       .flush({ status: 'ok' }, { headers: { 'Content-Type': 'application/json' } });

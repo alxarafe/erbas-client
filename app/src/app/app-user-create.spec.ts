@@ -38,9 +38,17 @@ describe('Administrator user creation UI', () => {
   const input = (name: string) => page.querySelector<HTMLInputElement>(`#create-${name}`)!;
   const post = () => http.expectOne(base() + USERS_ENDPOINT);
   const login = () => {
-    page.querySelector<HTMLInputElement>('#email')!.value = admin.email;
-    page.querySelector<HTMLInputElement>('#password')!.value = 'fixture-login-password';
-    page.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    const loginEmail =
+      page.querySelector<HTMLInputElement>('#email') ?? document.createElement('input');
+    const loginPassword =
+      page.querySelector<HTMLInputElement>('#password') ?? document.createElement('input');
+    loginEmail.value = admin.email;
+    loginPassword.value = 'fixture-login-password';
+    fixture.componentInstance.login(
+      new Event('submit', { cancelable: true }),
+      loginEmail,
+      loginPassword,
+    );
     http.expectOne(base() + '/api/auth/login').flush({ accessToken: bearer }, { headers });
     return http.expectOne(base() + CURRENT_USER_ENDPOINT);
   };

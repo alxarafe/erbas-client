@@ -74,3 +74,292 @@ core-fe-field-renderer select {
     padding: 24px 16px;
   }
 }
+
+/* The same shell and tokens serve the login and authenticated workspace. */
+.login-shell .shell {
+  max-width: 36rem;
+  padding-top: clamp(2rem, 9vh, 6rem);
+}
+.login-shell .shell-navigation {
+  display: none;
+}
+.application-shell .shell-default {
+  max-width: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  min-height: 100vh;
+  align-content: start;
+}
+.application-shell .shell-default > .shell-heading {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 1rem 1.5rem;
+  background: var(--theme-surface);
+  border-bottom: 1px solid var(--theme-border);
+}
+.application-shell .shell-default > .shell-navigation {
+  margin: 0;
+  padding: 1.5rem 1rem;
+  border-right: 1px solid var(--theme-border);
+  min-height: calc(100vh - 5rem);
+  background: var(--theme-surface);
+}
+.application-shell .shell-default > main {
+  min-width: 0;
+  padding: 1.5rem 2rem;
+}
+.application-shell .shell-default > footer {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.shell-navigation ul {
+  display: block;
+  margin: 0;
+}
+.shell-navigation li {
+  margin: 0.25rem 0;
+}
+.shell-navigation li > span {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  font-weight: 650;
+  font-size: 0.85rem;
+  color: var(--theme-muted);
+}
+.shell-navigation li ul {
+  padding-left: 0.75rem;
+}
+.shell-navigation a {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.35rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.shell-navigation a:hover {
+  background: var(--theme-background);
+}
+.shell-navigation a.active {
+  background: var(--theme-code);
+  color: var(--theme-accent);
+  font-weight: 700;
+  box-shadow: inset 3px 0 var(--theme-accent);
+}
+@media (max-width: 800px) {
+  .application-shell .shell-default {
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
+  .application-shell .shell-default > main {
+    padding: 1rem;
+  }
+}
+@media (max-width: 680px) {
+  .application-shell .shell-default {
+    display: block;
+  }
+  .application-shell .shell-default > .shell-navigation {
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--theme-border);
+    padding: 0.5rem 1rem;
+  }
+  .application-shell
+    .shell-navigation
+    > core-fe-navigation-outlet
+    > core-fe-default-navigation
+    > nav
+    > ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
+/* Generic resource surfaces share the active theme, including sparse themes. */
+app-generic-resource {
+  display: block;
+  min-width: 0;
+}
+app-generic-resource section[aria-label='Generic resource'] {
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+.resource-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.resource-toolbar h2 {
+  margin: 0;
+  font-size: 1.65rem;
+  letter-spacing: -0.025em;
+}
+.resource-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+app-generic-resource button,
+app-resource-form button {
+  font: inherit;
+  padding: 0.5rem 0.85rem;
+  background: var(--theme-surface);
+  color: var(--theme-link);
+  border: 1px solid var(--theme-border);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  margin: 0.2rem;
+}
+app-generic-resource button.primary,
+app-resource-form button[type='submit'] {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+  border-color: var(--theme-accent);
+}
+app-generic-resource button.destructive {
+  color: var(--theme-error);
+}
+app-generic-resource button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+app-generic-resource button:hover:not(:disabled) {
+  background: var(--theme-code);
+}
+app-generic-resource button.primary:hover:not(:disabled),
+app-resource-form button[type='submit']:hover:not(:disabled) {
+  background: var(--theme-accent);
+  filter: brightness(0.9);
+}
+.resource-query {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--theme-background);
+  border-radius: 0.4rem;
+  margin-block: 1rem;
+}
+.resource-query > label {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1 1 12rem;
+  font-size: 0.85rem;
+}
+.resource-query input,
+.resource-query select,
+app-resource-form select {
+  font: inherit;
+  padding: 0.6rem;
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0.3rem;
+  max-width: 100%;
+}
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex-basis: 100%;
+}
+.resource-table {
+  overflow-x: auto;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.4rem;
+}
+.resource-table table {
+  min-width: 48rem;
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.resource-table th {
+  font-size: 0.8rem;
+  background: var(--theme-background);
+}
+.resource-table th,
+.resource-table td {
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid var(--theme-border);
+}
+.resource-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.resource-table tbody tr:hover {
+  background: var(--theme-background);
+}
+.resource-table td {
+  max-width: 22rem;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+.resource-table caption {
+  text-align: left;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--theme-muted);
+}
+.record-operations {
+  min-width: 13rem;
+}
+.resource-pagination {
+  display: flex;
+  justify-content: end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+app-resource-form {
+  display: block;
+}
+.resource-field {
+  margin-block: 1.25rem;
+  max-width: 42rem;
+}
+.resource-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.resource-field core-fe-field-renderer input:not([type='checkbox']),
+.resource-field core-fe-field-renderer textarea,
+.resource-field core-fe-field-renderer select,
+.resource-field > select {
+  width: 100%;
+  border-radius: 0.3rem;
+  min-height: 2.6rem;
+}
+.resource-field small {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--theme-muted);
+  margin-top: 0.3rem;
+}
+.resource-field input[readonly],
+.read-only-form .resource-field input,
+.read-only-form .resource-field textarea {
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: var(--theme-border);
+  padding-left: 0;
+}
+.read-only-form .resource-field small {
+  display: none;
+}
+app-generic-resource [role='alert'] {
+  color: var(--theme-error);
+}
+app-generic-resource [hidden] {
+  display: none !important;
+}
+@media (max-width: 680px) {
+  app-generic-resource section[aria-label='Generic resource'] {
+    padding: 1rem;
+  }
+}

@@ -24,6 +24,8 @@ describe('Application login', () => {
     request.flush({ status: 'ok' }, { headers: { 'Content-Type': 'application/json' } });
   };
   const submit = () => {
+    email = page.querySelector('#email')!;
+    password = page.querySelector('#password')!;
     email.value = 'User@example.test';
     password.value = secret;
     const event = new Event('submit', { bubbles: true, cancelable: true });
@@ -87,7 +89,7 @@ describe('Application login', () => {
     await fixture.whenStable();
     expect(session.tokenFor('java')).toBe(token);
     expect(session.tokenFor('dotnet')).toBeNull();
-    expect(page.textContent).toContain('Authenticated · ERBAS Java / Spring Boot');
+    expect(page.querySelector('.identity')?.textContent).toContain('User@example.test');
     expect(page.textContent).not.toContain(token);
     expect(page.textContent).not.toContain(secret);
     expect(password.value).toBe('');
@@ -104,7 +106,7 @@ describe('Application login', () => {
     await fixture.whenStable();
     expect(session.tokenFor('dotnet')).toBe(token);
     expect(session.tokenFor('java')).toBeNull();
-    expect(page.textContent).toContain('Authenticated · Alxarafe.NET / ASP.NET Core');
+    expect(page.querySelector('.identity')?.textContent).toContain('User@example.test');
   });
 
   it.each([
@@ -188,7 +190,7 @@ describe('Application login', () => {
     succeed();
     await fixture.whenStable();
     const clear = [...page.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Clear session',
+      (button) => button.textContent === 'Sign out',
     )!;
     clear.click();
     await fixture.whenStable();
@@ -212,7 +214,8 @@ describe('Application login', () => {
     );
     succeed();
     await fixture.whenStable();
-    expect(page.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
+    expect(page.querySelector('#email')).toBeNull();
+    expect(page.querySelector('#logout')).not.toBeNull();
   });
 
   it('cancels a previous pending login when another submit occurs', () => {

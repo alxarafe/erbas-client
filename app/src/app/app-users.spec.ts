@@ -49,9 +49,17 @@ describe('Application users collection', () => {
     await fixture.whenStable();
   };
   const login = async (backend = 'java', email = user.email) => {
-    page.querySelector<HTMLInputElement>('#email')!.value = email;
-    page.querySelector<HTMLInputElement>('#password')!.value = 'fictitious-password';
-    page.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    const loginEmail =
+      page.querySelector<HTMLInputElement>('#email') ?? document.createElement('input');
+    const loginPassword =
+      page.querySelector<HTMLInputElement>('#password') ?? document.createElement('input');
+    loginEmail.value = email;
+    loginPassword.value = 'fictitious-password';
+    fixture.componentInstance.login(
+      new Event('submit', { cancelable: true }),
+      loginEmail,
+      loginPassword,
+    );
     http
       .expectOne(`/backends/${backend}/api/auth/login`)
       .flush({ accessToken: token }, { headers });
@@ -86,7 +94,7 @@ describe('Application users collection', () => {
   });
 
   it('requires authentication without issuing a protected request', () => {
-    expect(page.textContent).toContain('Authentication is required');
+    expect(page.querySelector('#email')).not.toBeNull();
     expect(page.querySelector('#reload-users')).toBeNull();
     fixture.componentInstance.loadUsers();
     http.expectNone((req) => req.url.endsWith('/api/users'));
@@ -234,7 +242,7 @@ describe('Application users collection', () => {
     await login();
     await loaded();
     [...page.querySelectorAll('button')]
-      .find((button) => button.textContent === 'Clear session')!
+      .find((button) => button.textContent === 'Sign out')!
       .click();
     await fixture.whenStable();
     expect(session.authenticated()).toBe(false);

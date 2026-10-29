@@ -4,7 +4,7 @@ WEB-001 implements the Angular application and Docker runtime; WEB-002 adds
 shared AUTH-001 login, backend-bound in-memory session and real demo verification.
 WEB-003A adds administrator-only USERS-001 / COLLECTIONS-001 listing and pagination
 against published erbas-contract v0.4.0, with the same code for both backends.
-401 clears the session; 403 preserves it. Backend switching and Clear session
+401 clears the session; 403 preserves it. Backend switching and Sign out
 cancel protected requests and discard user data. WEB-003B adds the authenticated
 `/api/auth/me` profile and administrator
 `GET /api/users/{id}` detail view, sharing one closed User validator. The loaded
@@ -55,6 +55,16 @@ from published v0.14.0: annotated tag object
 Validate identity before applying contexts and preserve absent versus explicit
 empty declarations. See [contextual presentation](docs/resource-presentation-001.md).
 This is presentation, not authorization. Java v0.14.0 compatibility is not claimed.
+
+## Application presentation
+
+CLIENT-DEMO-001 separates the pre-authentication login from the authenticated
+workspace through the existing theme shell. Keep connection/demo diagnostics in
+closed settings, user management in secondary Administration, and Assistant access
+in the authenticated header. Preserve stable wrapper nodes around conditional
+projected templates so theme changes retain feature views and state. Resource
+screens remain generic and server-curated; do not add an Assets screen or menu.
+See [demo flow and verification](docs/client-demo-001.md).
 
 ## Task lifecycle
 

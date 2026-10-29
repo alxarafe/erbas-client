@@ -1,4 +1,7 @@
-<section aria-label="Generic resource">
+<section aria-label="Generic resource" [attr.aria-busy]="busy()">
+  @if (busy()) {
+    <p role="status">Loading…</p>
+  }
   @if (error(); as failure) {
     <p role="alert">{{ failureMessage(failure) }} ({{ failure.code }})</p>
     @if (!meta()) {
@@ -8,20 +11,28 @@
     }
   }
   @if (meta(); as meta) {
-    <h2>{{ label(meta) }}</h2>
-    <button
-      type="button"
-      (click)="refreshMetadata()"
-      [disabled]="busy() || editing() || action() !== null"
-    >
-      Refresh metadata
-    </button>
-    <button type="button" (click)="load()" [disabled]="busy()">Refresh records</button>
-    @if (allowed(meta, 'create')) {
-      <button type="button" (click)="create()">Create</button>
-    }
+    <header class="resource-toolbar">
+      <h2>{{ title() }}</h2>
+      <div class="resource-controls" [hidden]="editing() || viewing()">
+        <button
+          type="button"
+          (click)="refreshMetadata()"
+          [disabled]="busy() || editing() || action() !== null"
+        >
+          Refresh metadata
+        </button>
+        <button type="button" (click)="load()" [disabled]="busy()">Refresh records</button>
+        @if (allowed(meta, 'create')) {
+          <button class="primary" type="button" (click)="create()">Create</button>
+        }
+      </div>
+    </header>
     @if (allowed(meta, 'list')) {
-      <form (submit)="apply($event, search.value, first.value, second.value)">
+      <form
+        class="resource-query"
+        [hidden]="editing() || viewing()"
+        (submit)="apply($event, search.value, first.value, second.value)"
+      >
         <label>Search <input #search [disabled]="!hasSearch(meta)" /></label>
         <label
           >Primary sort<select #first>
@@ -46,8 +57,9 @@
           </select></label
         >
         @for (filter of filters(); track $index; let index = $index) {
-          <div>
+          <div class="filter-row">
             <select
+              aria-label="Filter field"
               #filterField
               [value]="filter.field"
               (change)="setFilter(index, 'field', filterField.value)"
@@ -58,7 +70,12 @@
                 }
               }
             </select>
-            <select #op [value]="filter.operator" (change)="setFilter(index, 'operator', op.value)">
+            <select
+              aria-label="Filter operator"
+              #op
+              [value]="filter.operator"
+              (change)="setFilter(index, 'operator', op.value)"
+            >
               @for (operator of operators(filter.field); track operator) {
                 <option [value]="operator">{{ operator }}</option>
               }
@@ -99,74 +116,98 @@
       </div>
     }
     @if (page(); as page) {
-      <p>
-        Offset {{ page.offset }} · Limit {{ page.limit }} · Total {{ page.total ?? 'not supplied' }}
-      </p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              @if (hasSelectionActions()) {
-                <th>Select</th>
-              }
-              @for (field of columns(meta); track field.name) {
-                <th [attr.data-field]="field.name">{{ columnLabel(field) }}</th>
-              }
-              <th>Operations</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of page.items; track $index) {
+      <div [hidden]="editing() || viewing()">
+        <p>
+          Showing {{ page.items.length ? page.offset + 1 : 0 }}–{{
+            page.offset + page.items.length
+          }}
+          · Total {{ page.total ?? 'not supplied' }}
+        </p>
+        <div
+          class="resource-table"
+          tabindex="0"
+          role="region"
+          [attr.aria-label]="label(meta) + ' records'"
+        >
+          <table>
+            <caption>
+              {{
+                title()
+              }}
+            </caption>
+            <thead>
               <tr>
                 @if (hasSelectionActions()) {
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label="Select record"
-                      [disabled]="busy() || action() !== null"
-                      [checked]="selection().includes(row)"
-                      (change)="toggleSelection(row)"
-                    />
-                  </td>
+                  <th scope="col">Select</th>
                 }
                 @for (field of columns(meta); track field.name) {
-                  <td>{{ display(row[field.name]) }}</td>
+                  <th scope="col" [attr.data-field]="field.name">{{ columnLabel(field) }}</th>
                 }
-                <td>
-                  @if (allowed(meta, 'get') || entityActions(meta)) {
-                    <button type="button" (click)="open(row, false)">View / actions</button>
-                  }
-                  @if (allowed(meta, 'get') && allowed(meta, 'update')) {
-                    <button type="button" (click)="open(row, true)">Edit</button>
-                  }
-                  @if (allowed(meta, 'delete')) {
-                    <button type="button" (click)="deleting.set(row)">Delete</button>
-                  }
-                </td>
+                <th scope="col">Operations</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @if (!page.items.length && !busy()) {
+                <tr>
+                  <td [attr.colspan]="columns(meta).length + (hasSelectionActions() ? 2 : 1)">
+                    <p role="status">No records found.</p>
+                  </td>
+                </tr>
+              }
+              @for (row of page.items; track $index) {
+                <tr>
+                  @if (hasSelectionActions()) {
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label="Select record"
+                        [disabled]="busy() || action() !== null"
+                        [checked]="selection().includes(row)"
+                        (change)="toggleSelection(row)"
+                      />
+                    </td>
+                  }
+                  @for (field of columns(meta); track field.name) {
+                    <td>{{ display(row[field.name]) }}</td>
+                  }
+                  <td class="record-operations">
+                    @if (allowed(meta, 'get') || entityActions(meta)) {
+                      <button type="button" (click)="open(row, false)">View / actions</button>
+                    }
+                    @if (allowed(meta, 'get') && allowed(meta, 'update')) {
+                      <button type="button" (click)="open(row, true)">Edit</button>
+                    }
+                    @if (allowed(meta, 'delete')) {
+                      <button class="destructive" type="button" (click)="deleting.set(row)">
+                        Delete
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="resource-pagination" aria-label="Resource pagination">
+          <button
+            type="button"
+            [disabled]="busy() || page.offset === 0"
+            (click)="paginate(previous(page.offset, page.limit))"
+          >
+            Previous</button
+          ><button
+            type="button"
+            [disabled]="
+              busy() ||
+              page.items.length < page.limit ||
+              (page.total !== undefined && page.offset + page.limit >= page.total)
+            "
+            (click)="paginate(page.offset + page.limit)"
+          >
+            Next
+          </button>
+        </nav>
       </div>
-      <nav aria-label="Resource pagination">
-        <button
-          type="button"
-          [disabled]="busy() || page.offset === 0"
-          (click)="paginate(previous(page.offset, page.limit))"
-        >
-          Previous</button
-        ><button
-          type="button"
-          [disabled]="
-            busy() ||
-            page.items.length < page.limit ||
-            (page.total !== undefined && page.offset + page.limit >= page.total)
-          "
-          (click)="paginate(page.offset + page.limit)"
-        >
-          Next
-        </button>
-      </nav>
     }
     @if (editing()) {
       <h3>{{ selected() ? 'Edit' : 'Create' }}</h3>
@@ -186,6 +227,7 @@
       />
     }
     @if (viewing() && selected(); as row) {
+      <h3>View</h3>
       <app-resource-form
         [fields]="formFields()"
         [presentation]="form().presentation"

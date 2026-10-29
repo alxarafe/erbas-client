@@ -2,7 +2,17 @@ import { RouterOutlet } from '@angular/router';
 import { RuntimeClient, failureMessage } from './resource-runtime/runtime-client';
 import { targetUrl } from './resource-runtime/resource-routing';
 import { NavigationItem } from './resource-runtime/models';
-import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { ThemeShellOutlet } from './core-fe/shell/theme-shell-outlet';
 import { provideThemeRuntime } from './core-fe/theme/theme-runtime';
 import { BUILTIN_THEMES } from './core-fe/themes/themes';
@@ -96,6 +106,22 @@ export class App {
     'invalid-response': 'The backend returned an invalid login response.',
   };
   private readonly auth = inject(AuthClient);
+  private readonly injector = inject(Injector);
+  readonly assistantOpen = signal(false);
+  toggleAssistant(): void {
+    if (this.assistantOpen()) {
+      this.closeAssistant();
+      return;
+    }
+    this.assistantOpen.set(true);
+    afterNextRender(() => document.getElementById('assistant-message')?.focus(), {
+      injector: this.injector,
+    });
+  }
+  closeAssistant(): void {
+    this.assistantOpen.set(false);
+    document.getElementById('open-assistant')?.focus();
+  }
   readonly assistantStates = AiAssistantState;
   readonly assistantMaximum = AI_ASSISTANT_MESSAGE_MAXIMUM;
   readonly assistantState = signal<AiAssistantState>(AiAssistantState.Idle);
@@ -296,6 +322,7 @@ export class App {
   }
 
   private clearAssistant(): void {
+    this.assistantOpen.set(false);
     this.assistantRequest?.unsubscribe();
     this.assistantAnswer.set(null);
     this.assistantState.set(AiAssistantState.Idle);

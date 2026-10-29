@@ -66,6 +66,14 @@ export class ResourceForm {
   readonly editable = editable;
   private readonly client = inject(RuntimeClient);
   private lookupRequests = new Subscription();
+  referenceLabel(field: Field, relation: Relation): string {
+    const row = this.lookups()[relation.name]?.rows.find(
+      (item) => stringifyExact(item[relation.targetField]) === this.lookupValue(field),
+    );
+    return display(
+      row ? row[relation.displayField ?? relation.targetField] : this.values()[field.name],
+    );
+  }
   lookupValue(field: Field): string {
     const value = this.values()[field.name] ?? null;
     if (value === null) return '';

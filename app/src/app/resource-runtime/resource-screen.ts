@@ -19,6 +19,7 @@ import {
   Field,
   Filter,
   Metadata,
+  NavigationItem,
   Page,
   Query,
   Row,
@@ -68,6 +69,21 @@ export class ResourceScreen {
   readonly filters = signal<
     { field: string; operator: string; value: string; nullValue: boolean }[]
   >([]);
+  readonly title = computed(() => {
+    const find = (items: NavigationItem[]): string | undefined => {
+      for (const item of items) {
+        if (item.target?.type === 'RESOURCE' && item.target.resource === this.resource())
+          return item.label;
+        const child = find(item.children);
+        if (child) return child;
+      }
+      return undefined;
+    };
+    return (
+      find(this.client.navigation()?.items ?? []) ??
+      (this.meta() ? label(this.meta()!) : this.resource())
+    );
+  });
   readonly label = label;
   readonly display = display;
   readonly allowed = allowed;

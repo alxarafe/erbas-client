@@ -1,391 +1,476 @@
-<core-fe-shell-outlet [heading]="heading" [content]="content" [navigation]="navigation()" />
+<core-fe-shell-outlet
+  [class.login-shell]="!authenticated()"
+  [class.application-shell]="authenticated()"
+  [heading]="heading"
+  [content]="content"
+  [navigation]="authenticated() ? navigation() : []"
+/>
 <ng-template #heading>
-  <p class="eyebrow">SHARED CLIENT · WEB-003</p>
-  <h1>ERBAS</h1>
-  <p>One executable contract. Multiple interchangeable implementations.</p>
+  <div class="heading-content">
+    @if (authenticated()) {
+      <div class="application-heading">
+        <a class="brand" href="#workspace">ERBAS</a>
+        <div class="header-actions">
+          <button
+            id="open-assistant"
+            type="button"
+            class="quiet"
+            aria-controls="assistant-panel"
+            [attr.aria-expanded]="assistantOpen()"
+            (click)="toggleAssistant()"
+          >
+            Assistant
+          </button>
+          <span class="identity" aria-live="polite">{{
+            currentUser()?.email ?? 'Loading profile…'
+          }}</span>
+          <button id="logout" type="button" class="quiet" (click)="clearSession()">Sign out</button>
+        </div>
+      </div>
+    } @else {
+      <div class="login-brand">
+        <p class="eyebrow">YOUR WORK, CONNECTED</p>
+        <h1>ERBAS</h1>
+        <p>A clear view of your operations.</p>
+      </div>
+    }
+  </div>
 </ng-template>
 <ng-template #content>
-  @if (authenticated()) {
-    @if (runtime.error(); as failure) {
-      <p role="status">Navigation: {{ runtimeFailureMessage(failure) }}</p>
-    }
-    <button type="button" (click)="runtime.revalidateNavigation()">Revalidate navigation</button>
-    <router-outlet />
-  }
-  <section aria-labelledby="backend-heading">
-    <h2 id="backend-heading">Backend</h2>
-    <label for="backend">Choose an implementation</label>
-    <select id="backend" [value]="selection.selected().id" (change)="select($event)">
-      @for (backend of backends; track backend.id) {
-        <option [value]="backend.id">{{ backend.name }}</option>
-      }
-    </select>
-    <h3>{{ selection.selected().name }}</h3>
-    <dl>
-      <dt>Repository</dt>
-      <dd>
-        <a [href]="'https://github.com/' + selection.selected().repository">{{
-          selection.selected().repository
-        }}</a>
-      </dd>
-      <dt>Development endpoint</dt>
-      <dd>{{ selection.selected().baseUrl }}</dd>
-    </dl>
-    <div class="health" aria-live="polite" aria-atomic="true">
-      <span class="label">Health</span>
-      <strong [class]="state()"
-        >●
-        {{
-          state() === 'online' ? 'ONLINE' : state() === 'checking' ? 'CHECKING' : 'OFFLINE / ERROR'
-        }}</strong
-      >
-      @if (state() === 'online') {
-        <p>
-          Response <code>{{ '{"status":"ok"}' }}</code>
-        </p>
-      }
-      @if (state() === 'error') {
-        <p>
-          The backend is unavailable or returned an invalid Health response. Check that it is
-          running, then try again.
-        </p>
-      }
-      @if (lastChecked()) {
-        <p class="timing">
-          Last checked {{ lastChecked() | date: 'mediumTime' }} · {{ duration() }} ms
-        </p>
-      }
-    </div>
-    <button type="button" (click)="check()" [disabled]="state() === 'checking'">
-      {{ state() === 'checking' ? 'Checking…' : 'Check again' }}
-    </button>
-  </section>
-  <section class="authentication" aria-labelledby="auth-heading">
-    <h2 id="auth-heading">Authentication</h2>
-    @if (demoDefaults(); as demo) {
-      <aside aria-labelledby="demo-heading">
-        <h3 id="demo-heading">Default demo values</h3>
-        <p>
-          Public development/demo values; never use in production. They can stop working if
-          persisted demo accounts are modified.
-        </p>
-        <dl>
-          <dt>Administrator</dt>
-          <dd>
-            <code>{{ demo.adminEmail }}</code> ·
-            <code>{{ demo.adminPassword }}</code>
-          </dd>
-          <dt>Regular user</dt>
-          <dd>
-            <code>{{ demo.userEmail }}</code> ·
-            <code>{{ demo.userPassword }}</code>
-          </dd>
-        </dl>
-      </aside>
-    }
-    <div aria-live="polite" aria-atomic="true">
-      @if (authenticated()) {
-        <p>Authenticated · {{ selection.selected().name }}</p>
-      } @else {
-        <p>{{ loginMessages[loginState()] }}</p>
-      }
-    </div>
-    @if (profileState() === userStates.Unauthorized) {
-      <p aria-live="polite">{{ profileMessages[profileState()] }}</p>
-    }
-    <form
-      novalidate
-      (submit)="login($event, email, password)"
-      [attr.aria-busy]="loginState() === 'submitting'"
-    >
-      <label for="email">Email</label>
-      <input #email id="email" type="email" autocomplete="username" required />
-      <label for="password">Password</label>
-      <input #password id="password" type="password" autocomplete="current-password" required />
-      <button type="submit" [disabled]="loginState() === 'submitting'">
-        {{ loginState() === 'submitting' ? 'Signing in…' : 'Sign in' }}
-      </button>
-    </form>
-    @if (authenticated()) {
-      <div
-        id="current-user"
-        aria-live="polite"
-        aria-atomic="true"
-        [attr.aria-busy]="profileState() === userStates.Loading"
-      >
-        <h3>Current user</h3>
-        <p>{{ profileMessages[profileState()] }}</p>
-        @if (currentUser(); as user) {
-          <dl>
-            <dt>Email</dt>
-            <dd>{{ user.email }}</dd>
-            <dt>Enabled</dt>
-            <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
-            <dt>Administrator</dt>
-            <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
-          </dl>
-        }
-        <button
-          id="reload-profile"
-          type="button"
-          (click)="loadProfile()"
-          [disabled]="profileState() === userStates.Loading"
-        >
-          Reload profile
-        </button>
-      </div>
-      <p>Clear session discards this browser's local session only.</p>
-      <button type="button" (click)="clearSession()">Clear session</button>
-    }
-  </section>
-  <section class="assistant" aria-labelledby="assistant-heading">
-    <h2 id="assistant-heading">ERBAS Assistant</h2>
-    <p>The assistant answers using the effective READ capabilities available to your account.</p>
-    <p>Selected backend: {{ selection.selected().name }}.</p>
+  <div class="application-content">
     @if (!authenticated()) {
-      <p>Authentication is required to use the ERBAS Assistant on the selected backend.</p>
-      @if (assistantState() === assistantStates.Unauthorized) {
-        <p aria-live="polite" aria-atomic="true">{{ assistantMessages[assistantState()] }}</p>
-      }
-    } @else {
-      <form
-        id="assistant-form"
-        novalidate
-        (submit)="invokeAssistant($event, assistantMessage)"
-        [attr.aria-busy]="assistantState() === assistantStates.Submitting"
-      >
-        <label for="assistant-message">What do you need?</label>
-        <textarea
-          #assistantMessage
-          id="assistant-message"
-          rows="4"
-          required
-          aria-describedby="assistant-message-help"
-        ></textarea>
-        <p id="assistant-message-help">
-          Up to {{ assistantMaximum }} Unicode scalar values; whitespace and line breaks are
-          preserved.
-        </p>
-        <button type="submit" [disabled]="assistantState() === assistantStates.Submitting">
-          {{ assistantState() === assistantStates.Submitting ? 'Asking…' : 'Ask assistant' }}
-        </button>
-      </form>
-      <div
-        id="assistant-result"
-        aria-live="polite"
-        aria-atomic="true"
-        [attr.aria-busy]="assistantState() === assistantStates.Submitting"
-      >
-        @if (assistantState() !== assistantStates.Idle) {
-          <p>{{ assistantMessages[assistantState()] }}</p>
+      <section class="authentication" aria-labelledby="auth-heading">
+        <h2 id="auth-heading">Welcome back</h2>
+        @if (
+          usersState() === userStates.Unauthorized ||
+          detailState() === userStates.Unauthorized ||
+          createState() === createStates.Unauthorized ||
+          updateState() === updateStates.Unauthorized ||
+          assistantState() === assistantStates.Unauthorized
+        ) {
+          <p role="status">{{ profileMessages[userStates.Unauthorized] }}</p>
         }
-        @if (assistantAnswer(); as answer) {
-          <p class="assistant-answer">{{ answer }}</p>
-        }
-      </div>
-    }
-  </section>
-  <section
-    class="users"
-    aria-labelledby="users-heading"
-    [attr.aria-busy]="usersState() === userStates.Loading"
-  >
-    <h2 id="users-heading">Users</h2>
-    <p>Administrator-only user collection · ERBAS Contract v0.4.0.</p>
-    <p aria-live="polite" aria-atomic="true">{{ usersMessages[usersState()] }}</p>
-    @if (!authenticated()) {
-      <p>Authentication is required for the selected backend.</p>
-    } @else if (currentUser()?.admin === false) {
-      <p>{{ usersMessages[userStates.Forbidden] }}</p>
-    } @else if (administrator()) {
-      <button
-        id="reload-users"
-        type="button"
-        (click)="loadUsers()"
-        [disabled]="usersState() === userStates.Loading"
-      >
-        {{ usersState() === userStates.Idle ? 'Load users' : 'Reload users' }}
-      </button>
-    }
-    @if (administrator() || createState() === createStates.Unauthorized) {
-      <p aria-live="polite" aria-atomic="true">{{ createMessages[createState()] }}</p>
-    }
-    @if (administrator()) {
-      <form
-        id="create-user"
-        novalidate
-        (submit)="createUser($event, createEmail, createPassword, createAdmin)"
-        [attr.aria-busy]="createState() === createStates.Submitting"
-      >
-        <h3>Create user</h3>
-        <label for="create-email">Email</label>
-        <input
-          #createEmail
-          id="create-email"
-          type="text"
-          inputmode="email"
-          autocomplete="off"
-          required
-        />
-        <label for="create-password">Password</label>
-        <input
-          #createPassword
-          id="create-password"
-          type="password"
-          autocomplete="new-password"
-          required
-          aria-describedby="create-password-help"
-        />
-        <p id="create-password-help">
-          {{ passwordLength.minimum }}–{{ passwordLength.maximum }} Unicode code points; whitespace
-          is preserved.
-        </p>
-        <label for="create-admin" class="checkbox-label">
-          <input #createAdmin id="create-admin" type="checkbox" /> Administrator
-        </label>
-        <button type="submit" [disabled]="createState() === createStates.Submitting">
-          Create user
-        </button>
-      </form>
-    }
-    @if (createdUser(); as user) {
-      <div id="created-user" aria-live="polite">
-        <h3>Created user</h3>
-        <dl>
-          <dt>ID</dt>
-          <dd>{{ user.id }}</dd>
-          <dt>Email</dt>
-          <dd>{{ user.email }}</dd>
-          <dt>Enabled</dt>
-          <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
-          <dt>Administrator</dt>
-          <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
-        </dl>
-      </div>
-    }
-    @if (users(); as collection) {
-      <p>Total users: {{ collection.total }}</p>
-      <p>
-        Offset {{ collection.offset }} · Limit {{ collection.limit }} · Returned
-        {{ collection.items.length }}
-      </p>
-      @if (collection.items.length === 0) {
-        <p>No users in this window.</p>
-      } @else {
-        <div class="table-scroll" tabindex="0" role="region" aria-label="Users table">
-          <table>
-            <caption>
-              Users ordered by ID ascending
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">ID</th>
-                <th scope="col">Email</th>
-                <th scope="col">Enabled</th>
-                <th scope="col">Administrator</th>
-                <th scope="col">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (user of collection.items; track $index) {
-                <tr>
-                  <td>{{ user.id }}</td>
-                  <td>{{ user.email }}</td>
-                  <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
-                  <td>{{ user.admin ? 'Yes' : 'No' }}</td>
-                  <td>
-                    <button
-                      type="button"
-                      class="view-user"
-                      (click)="viewUser(user.id)"
-                      [attr.aria-label]="'View user ' + user.email"
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+        <div aria-live="polite" aria-atomic="true">
+          @if (authenticated()) {
+            <p>Authenticated · {{ selection.selected().name }}</p>
+          } @else {
+            <p>{{ loginMessages[loginState()] }}</p>
+          }
         </div>
-      }
-    }
-    @if (administrator()) {
-      <nav class="pagination" aria-label="Users pagination">
-        <button
-          id="previous-users"
-          type="button"
-          (click)="previousUsers()"
-          [disabled]="previousDisabled()"
-        >
-          Previous
-        </button>
-        <button id="next-users" type="button" (click)="nextUsers()" [disabled]="nextDisabled()">
-          Next
-        </button>
-      </nav>
-    }
-    @if (administrator() || updateState() === updateStates.Unauthorized) {
-      <p aria-live="polite" aria-atomic="true">
-        {{ updateMessages[updateState()] }}
-      </p>
-    }
-    <div
-      id="user-detail"
-      aria-live="polite"
-      aria-atomic="true"
-      [attr.aria-busy]="detailState() === userStates.Loading"
-    >
-      @if (selectedUserId() || detailState() !== userStates.Idle) {
-        <h3>User detail</h3>
-        @if (selectedUserId()) {
-          <p>Selected ID: {{ selectedUserId() }}</p>
+        @if (profileState() === userStates.Unauthorized) {
+          <p aria-live="polite">{{ profileMessages[profileState()] }}</p>
         }
-        <p>{{ detailMessages[detailState()] }}</p>
-        @if (detailUser(); as user) {
+        <form
+          novalidate
+          (submit)="login($event, email, password)"
+          [attr.aria-busy]="loginState() === 'submitting'"
+        >
+          <label for="email">Email</label>
+          <input #email id="email" type="email" autocomplete="username" required />
+          <label for="password">Password</label>
+          <input #password id="password" type="password" autocomplete="current-password" required />
+          <button type="submit" [disabled]="loginState() === 'submitting'">
+            {{ loginState() === 'submitting' ? 'Signing in…' : 'Sign in' }}
+          </button>
+        </form>
+      </section>
+    } @else {
+      <div id="workspace" tabindex="-1">
+        @if (runtime.error(); as failure) {
+          <p role="status">Navigation: {{ runtimeFailureMessage(failure) }}</p>
+        }
+        @if (!navigation().length && !runtime.error()) {
+          <p class="workspace-intro" role="status">
+            Your workspace · Select a section from the navigation when available.
+          </p>
+        }
+        <router-outlet />
+      </div>
+      <section
+        id="assistant-panel"
+        class="assistant"
+        aria-labelledby="assistant-heading"
+        [hidden]="!assistantOpen()"
+        (keydown.escape)="closeAssistant()"
+      >
+        <button id="close-assistant" class="quiet" type="button" (click)="closeAssistant()">
+          Close assistant
+        </button>
+        <h2 id="assistant-heading">ERBAS Assistant</h2>
+        <p>Ask a question using the capabilities available to your account.</p>
+        <p>Selected backend: {{ selection.selected().name }}.</p>
+        @if (!authenticated()) {
+          <p>Authentication is required to use the ERBAS Assistant on the selected backend.</p>
+          @if (assistantState() === assistantStates.Unauthorized) {
+            <p aria-live="polite" aria-atomic="true">{{ assistantMessages[assistantState()] }}</p>
+          }
+        } @else {
+          <form
+            id="assistant-form"
+            novalidate
+            (submit)="invokeAssistant($event, assistantMessage)"
+            [attr.aria-busy]="assistantState() === assistantStates.Submitting"
+          >
+            <label for="assistant-message">What do you need?</label>
+            <textarea
+              #assistantMessage
+              id="assistant-message"
+              rows="4"
+              required
+              aria-describedby="assistant-message-help"
+            ></textarea>
+            <p id="assistant-message-help">
+              Up to {{ assistantMaximum }} Unicode scalar values; whitespace and line breaks are
+              preserved.
+            </p>
+            <button type="submit" [disabled]="assistantState() === assistantStates.Submitting">
+              {{ assistantState() === assistantStates.Submitting ? 'Asking…' : 'Ask assistant' }}
+            </button>
+          </form>
+          <div
+            id="assistant-result"
+            aria-live="polite"
+            aria-atomic="true"
+            [attr.aria-busy]="assistantState() === assistantStates.Submitting"
+          >
+            @if (assistantState() !== assistantStates.Idle) {
+              <p>{{ assistantMessages[assistantState()] }}</p>
+            }
+            @if (assistantAnswer(); as answer) {
+              <p class="assistant-answer">{{ answer }}</p>
+            }
+          </div>
+        }
+      </section>
+    }
+    <details class="technical-tools">
+      <summary>{{ authenticated() ? 'Workspace settings' : 'Connection & demo options' }}</summary>
+      <section aria-labelledby="backend-heading">
+        <h2 id="backend-heading">Backend</h2>
+        <label for="backend">Choose an implementation</label>
+        <select id="backend" [value]="selection.selected().id" (change)="select($event)">
+          @for (backend of backends; track backend.id) {
+            <option [value]="backend.id">{{ backend.name }}</option>
+          }
+        </select>
+        <h3>{{ selection.selected().name }}</h3>
+        <dl>
+          <dt>Repository</dt>
+          <dd>
+            <a [href]="'https://github.com/' + selection.selected().repository">{{
+              selection.selected().repository
+            }}</a>
+          </dd>
+          <dt>Development endpoint</dt>
+          <dd>{{ selection.selected().baseUrl }}</dd>
+        </dl>
+        <div class="health" aria-live="polite" aria-atomic="true">
+          <span class="label">Health</span>
+          <strong [class]="state()"
+            >●
+            {{
+              state() === 'online'
+                ? 'ONLINE'
+                : state() === 'checking'
+                  ? 'CHECKING'
+                  : 'OFFLINE / ERROR'
+            }}</strong
+          >
+          @if (state() === 'online') {
+            <p>
+              Response <code>{{ '{"status":"ok"}' }}</code>
+            </p>
+          }
+          @if (state() === 'error') {
+            <p>
+              The backend is unavailable or returned an invalid Health response. Check that it is
+              running, then try again.
+            </p>
+          }
+          @if (lastChecked()) {
+            <p class="timing">
+              Last checked {{ lastChecked() | date: 'mediumTime' }} · {{ duration() }} ms
+            </p>
+          }
+        </div>
+        <button
+          id="check-health"
+          type="button"
+          (click)="check()"
+          [disabled]="state() === 'checking'"
+        >
+          {{ state() === 'checking' ? 'Checking…' : 'Check again' }}
+        </button>
+      </section>
+      @if (demoDefaults(); as demo) {
+        <aside aria-labelledby="demo-heading">
+          <h3 id="demo-heading">Default demo values</h3>
+          <p>
+            Public development/demo values; never use in production. They can stop working if
+            persisted demo accounts are modified.
+          </p>
+          <dl>
+            <dt>Administrator</dt>
+            <dd>
+              <code>{{ demo.adminEmail }}</code> ·
+              <code>{{ demo.adminPassword }}</code>
+            </dd>
+            <dt>Regular user</dt>
+            <dd>
+              <code>{{ demo.userEmail }}</code> ·
+              <code>{{ demo.userPassword }}</code>
+            </dd>
+          </dl>
+        </aside>
+      }
+
+      @if (authenticated()) {
+        <section aria-label="Session tools">
+          <div
+            id="current-user"
+            aria-live="polite"
+            aria-atomic="true"
+            [attr.aria-busy]="profileState() === userStates.Loading"
+          >
+            <h3>Current user</h3>
+            <p>{{ profileMessages[profileState()] }}</p>
+            @if (currentUser(); as user) {
+              <dl>
+                <dt>Email</dt>
+                <dd>{{ user.email }}</dd>
+                <dt>Enabled</dt>
+                <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
+                <dt>Administrator</dt>
+                <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
+              </dl>
+            }
+            <button
+              id="reload-profile"
+              type="button"
+              (click)="loadProfile()"
+              [disabled]="profileState() === userStates.Loading"
+            >
+              Reload profile
+            </button>
+          </div>
+          <button type="button" (click)="runtime.revalidateNavigation()">
+            Revalidate navigation
+          </button>
+        </section>
+      }
+    </details>
+    @if (authenticated()) {
+      <details class="administration-tools">
+        <summary>Administration</summary>
+        <section
+          class="users"
+          aria-labelledby="users-heading"
+          [attr.aria-busy]="usersState() === userStates.Loading"
+        >
+          <h2 id="users-heading">Users</h2>
+          <p>Administrator-only user collection · ERBAS Contract v0.4.0.</p>
+          <p aria-live="polite" aria-atomic="true">{{ usersMessages[usersState()] }}</p>
+          @if (!authenticated()) {
+            <p>Authentication is required for the selected backend.</p>
+          } @else if (currentUser()?.admin === false) {
+            <p>{{ usersMessages[userStates.Forbidden] }}</p>
+          } @else if (administrator()) {
+            <button
+              id="reload-users"
+              type="button"
+              (click)="loadUsers()"
+              [disabled]="usersState() === userStates.Loading"
+            >
+              {{ usersState() === userStates.Idle ? 'Load users' : 'Reload users' }}
+            </button>
+          }
+          @if (administrator() || createState() === createStates.Unauthorized) {
+            <p aria-live="polite" aria-atomic="true">{{ createMessages[createState()] }}</p>
+          }
           @if (administrator()) {
             <form
-              id="update-user"
-              (submit)="updateUser($event)"
-              [attr.aria-busy]="updateState() === updateStates.Submitting"
+              id="create-user"
+              novalidate
+              (submit)="createUser($event, createEmail, createPassword, createAdmin)"
+              [attr.aria-busy]="createState() === createStates.Submitting"
             >
-              <label for="update-enabled" class="checkbox-label">
-                <input
-                  #enabled
-                  id="update-enabled"
-                  type="checkbox"
-                  [checked]="updateEnabled()"
-                  (change)="updateEnabled.set(enabled.checked)"
-                />
-                Enabled
+              <h3>Create user</h3>
+              <label for="create-email">Email</label>
+              <input
+                #createEmail
+                id="create-email"
+                type="text"
+                inputmode="email"
+                autocomplete="off"
+                required
+              />
+              <label for="create-password">Password</label>
+              <input
+                #createPassword
+                id="create-password"
+                type="password"
+                autocomplete="new-password"
+                required
+                aria-describedby="create-password-help"
+              />
+              <p id="create-password-help">
+                {{ passwordLength.minimum }}–{{ passwordLength.maximum }} Unicode code points;
+                whitespace is preserved.
+              </p>
+              <label for="create-admin" class="checkbox-label">
+                <input #createAdmin id="create-admin" type="checkbox" /> Administrator
               </label>
-              <label for="update-admin" class="checkbox-label">
-                <input
-                  #admin
-                  id="update-admin"
-                  type="checkbox"
-                  [checked]="updateAdmin()"
-                  (change)="updateAdmin.set(admin.checked)"
-                />
-                Administrator
-              </label>
-              <button type="submit" [disabled]="updateState() === updateStates.Submitting">
-                Update user
+              <button type="submit" [disabled]="createState() === createStates.Submitting">
+                Create user
               </button>
             </form>
           }
-          <dl>
-            <dt>ID</dt>
-            <dd>{{ user.id }}</dd>
-            <dt>Email</dt>
-            <dd>{{ user.email }}</dd>
-            <dt>Enabled</dt>
-            <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
-            <dt>Administrator</dt>
-            <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
-          </dl>
-        }
-      }
-    </div>
-  </section>
+          @if (createdUser(); as user) {
+            <div id="created-user" aria-live="polite">
+              <h3>Created user</h3>
+              <dl>
+                <dt>ID</dt>
+                <dd>{{ user.id }}</dd>
+                <dt>Email</dt>
+                <dd>{{ user.email }}</dd>
+                <dt>Enabled</dt>
+                <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
+                <dt>Administrator</dt>
+                <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
+              </dl>
+            </div>
+          }
+          @if (users(); as collection) {
+            <p>Total users: {{ collection.total }}</p>
+            <p>
+              Offset {{ collection.offset }} · Limit {{ collection.limit }} · Returned
+              {{ collection.items.length }}
+            </p>
+            @if (collection.items.length === 0) {
+              <p>No users in this window.</p>
+            } @else {
+              <div class="table-scroll" tabindex="0" role="region" aria-label="Users table">
+                <table>
+                  <caption>
+                    Users ordered by ID ascending
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">ID</th>
+                      <th scope="col">Email</th>
+                      <th scope="col">Enabled</th>
+                      <th scope="col">Administrator</th>
+                      <th scope="col">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (user of collection.items; track $index) {
+                      <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
+                        <td>{{ user.admin ? 'Yes' : 'No' }}</td>
+                        <td>
+                          <button
+                            type="button"
+                            class="view-user"
+                            (click)="viewUser(user.id)"
+                            [attr.aria-label]="'View user ' + user.email"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+          @if (administrator()) {
+            <nav class="pagination" aria-label="Users pagination">
+              <button
+                id="previous-users"
+                type="button"
+                (click)="previousUsers()"
+                [disabled]="previousDisabled()"
+              >
+                Previous
+              </button>
+              <button
+                id="next-users"
+                type="button"
+                (click)="nextUsers()"
+                [disabled]="nextDisabled()"
+              >
+                Next
+              </button>
+            </nav>
+          }
+          @if (administrator() || updateState() === updateStates.Unauthorized) {
+            <p aria-live="polite" aria-atomic="true">
+              {{ updateMessages[updateState()] }}
+            </p>
+          }
+          <div
+            id="user-detail"
+            aria-live="polite"
+            aria-atomic="true"
+            [attr.aria-busy]="detailState() === userStates.Loading"
+          >
+            @if (selectedUserId() || detailState() !== userStates.Idle) {
+              <h3>User detail</h3>
+              @if (selectedUserId()) {
+                <p>Selected ID: {{ selectedUserId() }}</p>
+              }
+              <p>{{ detailMessages[detailState()] }}</p>
+              @if (detailUser(); as user) {
+                @if (administrator()) {
+                  <form
+                    id="update-user"
+                    (submit)="updateUser($event)"
+                    [attr.aria-busy]="updateState() === updateStates.Submitting"
+                  >
+                    <label for="update-enabled" class="checkbox-label">
+                      <input
+                        #enabled
+                        id="update-enabled"
+                        type="checkbox"
+                        [checked]="updateEnabled()"
+                        (change)="updateEnabled.set(enabled.checked)"
+                      />
+                      Enabled
+                    </label>
+                    <label for="update-admin" class="checkbox-label">
+                      <input
+                        #admin
+                        id="update-admin"
+                        type="checkbox"
+                        [checked]="updateAdmin()"
+                        (change)="updateAdmin.set(admin.checked)"
+                      />
+                      Administrator
+                    </label>
+                    <button type="submit" [disabled]="updateState() === updateStates.Submitting">
+                      Update user
+                    </button>
+                  </form>
+                }
+                <dl>
+                  <dt>ID</dt>
+                  <dd>{{ user.id }}</dd>
+                  <dt>Email</dt>
+                  <dd>{{ user.email }}</dd>
+                  <dt>Enabled</dt>
+                  <dd>{{ user.enabled ? 'Yes' : 'No' }}</dd>
+                  <dt>Administrator</dt>
+                  <dd>{{ user.admin ? 'Yes' : 'No' }}</dd>
+                </dl>
+              }
+            }
+          </div>
+        </section>
+      </details>
+    }
+  </div>
 </ng-template>

@@ -44,9 +44,17 @@ describe('Administrator user update UI', () => {
   const submit = () =>
     page.querySelector('#update-user')!.dispatchEvent(new Event('submit', { cancelable: true }));
   const login = () => {
-    page.querySelector<HTMLInputElement>('#email')!.value = admin.email;
-    page.querySelector<HTMLInputElement>('#password')!.value = 'fixture-secret';
-    page.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    const loginEmail =
+      page.querySelector<HTMLInputElement>('#email') ?? document.createElement('input');
+    const loginPassword =
+      page.querySelector<HTMLInputElement>('#password') ?? document.createElement('input');
+    loginEmail.value = admin.email;
+    loginPassword.value = 'fixture-secret';
+    fixture.componentInstance.login(
+      new Event('submit', { cancelable: true }),
+      loginEmail,
+      loginPassword,
+    );
     http
       .expectOne(base() + '/api/auth/login')
       .flush({ accessToken: 'fixture-bearer' }, { headers });

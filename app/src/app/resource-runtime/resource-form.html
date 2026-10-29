@@ -1,4 +1,4 @@
-<form (submit)="submit($event)" novalidate>
+<form [class.read-only-form]="readOnly()" (submit)="submit($event)" novalidate>
   <ng-template #fieldControl let-field>
     <div class="resource-field">
       @if (!readOnly() && !field.readOnly && relation(field); as rel) {
@@ -12,12 +12,15 @@
         >
           <option value="">Choose a reference</option>
           @if (values()[field.name] !== null) {
-            <option [value]="lookupValue(field)">
-              Current: {{ display(values()[field.name]) }}
+            <option [value]="lookupValue(field)" [selected]="true">
+              Current: {{ referenceLabel(field, rel) }}
             </option>
           }
           @for (item of lookups()[rel.name]?.rows ?? []; track $index) {
-            <option [value]="stringify(item[rel.targetField])">
+            <option
+              [value]="stringify(item[rel.targetField])"
+              [selected]="stringify(item[rel.targetField]) === lookupValue(field)"
+            >
               {{ display(item[rel.displayField ?? rel.targetField]) }}
             </option>
           }
@@ -54,9 +57,8 @@
       }
       <small data-constraints>{{ constraintHelp(field) }}</small>
       <small
-        >{{ field.type }}{{ field.required ? ' · Required' : ''
-        }}{{ field.nullable ? ' · Nullable' : ''
-        }}{{ field.immutable ? ' · Immutable' : '' }}</small
+        >{{ field.required ? 'Required' : 'Optional'
+        }}{{ field.immutable ? ' · Set at creation' : '' }}</small
       >
       @if (!readOnly() && field.nullable && editable(field, record() !== null)) {
         <button type="button" [disabled]="busy()" (click)="change(field.name, null)">
@@ -82,5 +84,7 @@
   @if (!readOnly()) {
     <button type="submit" [disabled]="busy()">Save</button>
   }
-  <button type="button" [disabled]="busy()" (click)="cancelled.emit()">Cancel</button>
+  <button type="button" [disabled]="busy()" (click)="cancelled.emit()">
+    {{ readOnly() ? 'Close' : 'Cancel' }}
+  </button>
 </form>

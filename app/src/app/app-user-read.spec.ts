@@ -33,9 +33,17 @@ describe('Profile and administrator detail UI', () => {
   const detail = (id = regular.id, backend = 'java') =>
     http.expectOne(`/backends/${backend}${USERS_ENDPOINT}/${encodeURIComponent(id)}`);
   const login = () => {
-    page.querySelector<HTMLInputElement>('#email')!.value = admin.email;
-    page.querySelector<HTMLInputElement>('#password')!.value = 'fixture-password';
-    page.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    const loginEmail =
+      page.querySelector<HTMLInputElement>('#email') ?? document.createElement('input');
+    const loginPassword =
+      page.querySelector<HTMLInputElement>('#password') ?? document.createElement('input');
+    loginEmail.value = admin.email;
+    loginPassword.value = 'fixture-password';
+    fixture.componentInstance.login(
+      new Event('submit', { cancelable: true }),
+      loginEmail,
+      loginPassword,
+    );
     const backend = fixture.componentInstance.selection.selected().id;
     http
       .expectOne(`/backends/${backend}/api/auth/login`)

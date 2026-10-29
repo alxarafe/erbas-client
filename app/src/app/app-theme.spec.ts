@@ -42,8 +42,8 @@ describe('App theme shell regression', () => {
       const page = fixture.nativeElement as HTMLElement;
       expect(page.querySelector('#backend')).not.toBeNull();
       expect(page.querySelector('#email')).not.toBeNull();
-      expect(page.querySelector('#assistant-heading')?.textContent).toBe('ERBAS Assistant');
-      expect(page.querySelector('#users-heading')?.textContent).toBe('Users');
+      expect(page.querySelector('#assistant-heading')).toBeNull();
+      expect(page.querySelector('#users-heading')).toBeNull();
       const email = page.querySelector<HTMLInputElement>('#email')!;
       email.value = 'theme@example.test';
       page.querySelector<HTMLInputElement>('#password')!.value = 'example-password';
@@ -66,7 +66,7 @@ describe('App theme shell regression', () => {
       draft.value = 'Draft retained across themes';
       fixture.debugElement.injector.get(ThemeService).activate(ThemeId.Cyberpunk);
       await fixture.whenStable();
-      expect(page.querySelector('#email')).toBe(email);
+      expect(page.querySelector('#email')).toBeNull();
       expect(page.querySelector('#assistant-message')).toBe(draft);
       expect(draft.value).toBe('Draft retained across themes');
       expect(TestBed.inject(AuthSession).tokenFor('java')).toBe(TOKEN);

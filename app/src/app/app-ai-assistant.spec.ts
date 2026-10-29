@@ -59,9 +59,17 @@ describe('AI assistant UI', () => {
     await fixture.whenStable();
   };
   const login = async (selected = 'java', profile = admin) => {
-    page.querySelector<HTMLInputElement>('#email')!.value = profile.email;
-    page.querySelector<HTMLInputElement>('#password')!.value = 'fictitious-password';
-    page.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    const loginEmail =
+      page.querySelector<HTMLInputElement>('#email') ?? document.createElement('input');
+    const loginPassword =
+      page.querySelector<HTMLInputElement>('#password') ?? document.createElement('input');
+    loginEmail.value = profile.email;
+    loginPassword.value = 'fictitious-password';
+    fixture.componentInstance.login(
+      new Event('submit', { cancelable: true }),
+      loginEmail,
+      loginPassword,
+    );
     http
       .expectOne(`/backends/${selected}/api/auth/login`)
       .flush({ accessToken: token }, { headers });
@@ -111,12 +119,8 @@ describe('AI assistant UI', () => {
     http.verify();
   });
 
-  it('renders the unauthenticated assistant without a form or protected request', () => {
-    expect(page.querySelector('#assistant-heading')?.textContent).toBe('ERBAS Assistant');
-    expect(page.textContent).toContain(
-      'The assistant answers using the effective READ capabilities available to your account.',
-    );
-    expect(page.textContent).toContain('Authentication is required to use the ERBAS Assistant');
+  it('keeps the assistant out of the login without a protected request', () => {
+    expect(page.querySelector('#assistant-heading')).toBeNull();
     expect(page.querySelector('#assistant-form')).toBeNull();
     expect(page.querySelector('label[for="assistant-message"]')).toBeNull();
     http.expectNone((req) => req.url.endsWith(AI_ASSISTANT_ENDPOINT));
@@ -331,7 +335,7 @@ describe('AI assistant UI', () => {
     await fixture.whenStable();
     const pending = assistant();
     [...page.querySelectorAll('button')]
-      .find((button) => button.textContent === 'Clear session')!
+      .find((button) => button.textContent === 'Sign out')!
       .click();
     await fixture.whenStable();
     expect(pending.cancelled).toBe(true);

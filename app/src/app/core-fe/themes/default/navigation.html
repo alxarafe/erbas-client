@@ -4,7 +4,9 @@
       <li>
         @if (item.href) {
           @if (item.applicationRoute) {
-            <a [routerLink]="item.href">{{ item.label }}</a>
+            <a [routerLink]="item.href" routerLinkActive="active" ariaCurrentWhenActive="page">{{
+              item.label
+            }}</a>
           } @else {
             <a [href]="item.href">{{ item.label }}</a>
           }
