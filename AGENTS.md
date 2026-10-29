@@ -34,7 +34,7 @@ Preserve unrelated changes; write public documentation in English.
 
 ## Published contract and generic presentation
 
-`contract.revision` declares formal consumption of published immutable v0.13.0;
+`contract.revision` declares formal consumption of published immutable v0.14.0;
 [publication identity and backend alignment](docs/full-stack-development.md#published-contract-adoption)
 record the exact tag object/commit. .NET formally adopts this release; do not claim
 Java support for the new operations before its adoption. Earlier candidate proofs
@@ -48,11 +48,13 @@ to shared MANY_TO_ONE controls, layouts or themes must benefit all resources usi
 that pattern. Do not introduce a new registry or renderer to record this policy.
 
 RESOURCE-PRESENTATION-001 consumes the separate contextual presentation endpoint
-against unpublished candidate `9919ad3725e50d63e7a19befbe0d81b4d91df0cc` and .NET
-`00d6de93450407e5709f1a7f44c673a11819c931`; the published pin remains v0.13.0.
+from published v0.14.0: annotated tag object
+`22191afb8ab477fef319093b8c212264f4019816`, target commit
+`9919ad3725e50d63e7a19befbe0d81b4d91df0cc`. .NET adopts it at
+`6c8cf72b5ceefd15411f24befa140bcf28b9e201`.
 Validate identity before applying contexts and preserve absent versus explicit
 empty declarations. See [contextual presentation](docs/resource-presentation-001.md).
-This is presentation, not authorization or formal v0.14.0 adoption.
+This is presentation, not authorization. Java v0.14.0 compatibility is not claimed.
 
 ## Task lifecycle
 

@@ -2,17 +2,33 @@
 
 ## Identity and scope
 
-The client continues formally consuming published immutable **v0.13.0** through
-[`contract.revision`](../contract.revision). Its tag identity is unchanged:
-annotated object `919684db4f607a575397576b87577cd9582e1f86`, target
-`29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`.
+erbas-client formally adopts published immutable **erbas-contract v0.14.0**
+through [`contract.revision`](../contract.revision). RESOURCE-PRESENTATION-001
+belongs to this published release:
 
-This feature anticipates the **unpublished v0.14.0 candidate** at
-`9919ad3725e50d63e7a19befbe0d81b4d91df0cc` and .NET implementation
-`00d6de93450407e5709f1a7f44c673a11819c931`.
-The normative [candidate specification](https://github.com/alxarafe/erbas-contract/blob/9919ad3725e50d63e7a19befbe0d81b4d91df0cc/docs/core/resource-presentation-001.md)
-is the authority. This is not formal v0.14.0 adoption, publication or Java
-compatibility. Backend shared conformance and client proofs are distinct evidence.
+- Annotated tag object: `22191afb8ab477fef319093b8c212264f4019816`.
+- Target commit: `9919ad3725e50d63e7a19befbe0d81b4d91df0cc`.
+- Adopting .NET revision: `6c8cf72b5ceefd15411f24befa140bcf28b9e201`.
+
+The normative [published specification](https://github.com/alxarafe/erbas-contract/blob/v0.14.0/docs/core/resource-presentation-001.md)
+is the authority. Java v0.14.0 compatibility is not claimed. Backend shared
+conformance and client proofs are distinct evidence.
+
+The historical pre-publication proof below used the same contractual target
+commit while it was a candidate, with .NET implementation
+`00d6de93450407e5709f1a7f44c673a11819c931` and the client's then-published
+v0.13.0 pin. Formal adoption changes no implementation or proof source.
+
+## Published adoption verification — 2026-10-29
+
+Remote `git ls-remote` verified the published v0.14.0 annotated tag and peeled
+commit against the exact identities above. `./bin/check` passed 693 Angular tests,
+16 Python tests, formatting, production Docker build (cached), runtime/proxy
+smokes including contextual presentation, ETag/304 and legacy 404, and cleanup.
+The existing Rolldown installation correction is unchanged. Normal checks use
+synthetic backends and perform no shared contract checkout or conformance run;
+no new live-backend proof was required or performed for this adoption.
+Only the release marker and documentation changed; implementation is unchanged.
 
 ## Discovery, validation and cache
 
@@ -123,14 +139,14 @@ A source boundary test rejects Assets-specific names in production runtime code.
 Proxy smokes cover contextual GET/private headers/304 plus a valid legacy metadata
 response followed by endpoint 404. This introduces no permanent test dependency.
 
-## Local verification — 2026-10-28
+## Historical pre-publication verification — 2026-10-28
 
 - `./bin/check`: **693 Angular tests** (66 added), **16 Python tests** (one added),
   zero failures/skips, formatting, production build, both runtime/proxy smokes and
   cleanup passed. Dockerfile, npm/package/lockfile and the Rolldown installation
   correction remain unchanged.
 - Existing `runtime-live.proof.ts` and expanded `presentation-live.proof.ts` passed
-  against the exact .NET revision above, with real login/profile/navigation,
+  against the historical .NET implementation revision above, with real login/profile/navigation,
   generic CRUD, contextual identity/ETag validation and separate identity caches.
 - Chromium **141.0.7390.37**, temporary Playwright **1.56.1**, passed the real
   two-phase Assets flow: six exact ordered LIST columns, only the two CREATE

@@ -8,17 +8,17 @@ or combined ecosystem Compose file.
 ## Published contract adoption
 
 The client's [contract.revision](../contract.revision) formally declares consumption
-of published immutable **erbas-contract v0.13.0**:
+of published immutable **erbas-contract v0.14.0**:
 
-- Annotated tag object: `919684db4f607a575397576b87577cd9582e1f86`.
-- Target commit: `29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`.
+- Annotated tag object: `22191afb8ab477fef319093b8c212264f4019816`.
+- Target commit: `9919ad3725e50d63e7a19befbe0d81b4d91df0cc`.
 
 The marker declares the client's contractual target; it is not a package dependency
 or a guarantee that a selected backend implements every operation. Client CI does
 not clone/download the contract to compare the marker string. Backend repositories
 own immutable checkout verification and shared conformance.
 
-.NET formally adopts v0.13.0 at `baf5f4f48ac924e2bed35629835be4d43bfc4ab8`.
+.NET formally adopts v0.14.0 at `6c8cf72b5ceefd15411f24befa140bcf28b9e201`.
 Generic Resource Runtime and effective navigation now use published operations
 directly. Java support for those operations is not claimed until Java adopts them;
 legacy supported features remain usable and navigation failure is reported without
@@ -33,20 +33,23 @@ resource using the pattern; resource-specific screens are not the default path.
 See [presentation metadata](client-runtime-002.md) for static layouts and effective
 operation-level UI. This policy introduces no new registry, renderer, API, field
 permission model. [RESOURCE-PRESENTATION-001](resource-presentation-001.md) separately
-adds contextual layouts using an exact unpublished candidate, without changing
-published adoption.
+adds contextual layouts from the same published release.
 
-## Contextual candidate implementation
+## Contextual published implementation
 
-The client also implements RESOURCE-PRESENTATION-001 against unpublished contract
-candidate `9919ad3725e50d63e7a19befbe0d81b4d91df0cc`, with .NET implementation
-`00d6de93450407e5709f1a7f44c673a11819c931`. Both still formally adopt v0.13.0.
-No v0.14.0 publication or Java adoption is implied. See
-[contextual presentation and real proof](resource-presentation-001.md).
-The published-adoption verification below remains historical evidence for its
-stated revisions; the contextual proof is a separate development result.
+RESOURCE-PRESENTATION-001 belongs to published v0.14.0, which erbas-client
+formally adopts. .NET adopts the same release at the revision above. Java
+v0.14.0 compatibility is not claimed. See
+[contextual presentation and historical real proof](resource-presentation-001.md).
+The published-adoption verification below remains historical v0.13.0 evidence
+for its stated revisions; the contextual pre-publication proof also retains its
+original identities. Neither is a new v0.14.0 live-backend verification.
 
 ## Published adoption verification
+
+This section records historical v0.13.0 verification, with annotated tag object
+`919684db4f607a575397576b87577cd9582e1f86` targeting
+`29bd8de3e5c5772fea5096ab2c60abc6a10e55f7`.
 
 The published-adoption run used .NET `baf5f4f48ac924e2bed35629835be4d43bfc4ab8`
 with its normal validation Host and four fresh disposable databases. The client
@@ -515,7 +518,7 @@ and evidence live here. These checks do not claim a new backend conformance run.
 
 The Angular application exposes a minimal synchronous **ERBAS Assistant** for the
 selected backend. It consumes the published AI-001 operation from
-the adopted erbas-contract v0.13.0 and sends exactly one closed `message` field to
+the adopted erbas-contract v0.14.0 and sends exactly one closed `message` field to
 `POST /api/ai/assistant/invocations` through the same-origin proxy. The section
 is visible before login and explains that authentication is required; the form
 appears only with an authenticated, backend-bound bearer.

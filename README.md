@@ -10,20 +10,20 @@ The shared Angular client demonstrates **one executable contract, multiple
 interchangeable implementations**. It provides backend selection, public Health,
 shared authentication, basic administrator user management with pagination, and
 a minimal synchronous ERBAS Assistant. It consumes published erbas-contract
-operations from published immutable **v0.13.0**, declared by
+operations from published immutable **v0.14.0**, declared by
 [contract.revision](contract.revision).
 It uses standalone components, strict TypeScript, HttpClient and signals.
 The Core FE provides compiled sparse themes and typed shell extension slots; see
 [theme architecture](docs/core-fe-theme-runtime.md).
 [Effective navigation and generic CRUD](docs/client-runtime-001.md), including
 [static layouts and effective UI](docs/client-runtime-002.md), consume published
-v0.13.0. Generic CRUD is the primary presentation path for standard resources;
+v0.14.0. Generic CRUD is the primary presentation path for standard resources;
 compiled Angular screens are explicit extensions for UX that metadata, renderers
 or registered extensions cannot reasonably express. Shared improvements to
 MANY_TO_ONE controls, layouts or themes benefit every resource using that pattern.
 Optional [contextual presentation](docs/resource-presentation-001.md) supports
-LIST/CREATE/EDIT/VIEW against the exact unpublished v0.14.0 candidate; the formal
-published pin remains v0.13.0 and legacy servers retain form/field-order rendering.
+LIST/CREATE/EDIT/VIEW from published v0.14.0, which erbas-client formally adopts;
+legacy servers retain form/field-order rendering.
 Angular 22 is built inside Docker; Nginx serves the production bundle.
 
 [erbas-contract](https://github.com/alxarafe/erbas-contract) is the HTTP authority.
@@ -36,15 +36,15 @@ Health indicates HTTP process liveness, not database readiness.
 
 | Repository | Responsibility |
 | --- | --- |
-| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.13.0 |
-| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of legacy shared operations; new v0.13.0 operations are not adopted |
-| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation formally adopting v0.13.0 plus platform modules |
-| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular consumer of v0.13.0; legacy operations remain usable against supporting backends |
+| [erbas-contract](https://github.com/alxarafe/erbas-contract) | Shared OpenAPI and sole Bruno conformance collection; published immutable v0.14.0 |
+| [erbas](https://github.com/alxarafe/erbas) | Java/Spring Boot implementation of legacy shared operations; new v0.14.0 operations are not adopted |
+| [alxarafe-dotnet](https://github.com/alxarafe/alxarafe-dotnet) | .NET implementation formally adopting v0.14.0 plus platform modules |
+| [erbas-client](https://github.com/alxarafe/erbas-client) | Angular consumer of v0.14.0; legacy operations remain usable against supporting backends |
 
 The Angular badge reports client tests, build, runtime and isolated proxy checks.
 Java and .NET badges report each backend's authoritative `./bin/check`, including
 mandatory shared conformance against each backend's declared release. .NET is
-aligned with v0.13.0; Java compatibility with generic CRUD/navigation is not
+aligned with v0.14.0; Java compatibility with generic CRUD/navigation is not
 claimed until formal adoption. The client's exact release identity and adoption
 boundaries are recorded in [the development guide](docs/full-stack-development.md#published-contract-adoption).
 Client CI does not perform backend shared conformance.
@@ -218,7 +218,7 @@ user data; self-updates immediately adjust local session access. See
 [basic user administration](docs/full-stack-development.md#administrator-user-update-web-003d)
 for behavior, error handling and verification limits.
 
-The ERBAS Assistant consumes AI-001 from adopted erbas-contract v0.13.0 through either
+The ERBAS Assistant consumes AI-001 from adopted erbas-contract v0.14.0 through either
 selected backend. The .NET backend implements the operation; Java may report it
 unavailable until it adopts AI-001. Authentication and the backend-owned
 `ai.assistant.invoke` permission are required. The UI sends one closed `message`

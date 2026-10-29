@@ -1,6 +1,6 @@
 # CLIENT-RUNTIME-002: presentation metadata and effective UI
 
-Published immutable erbas-contract **v0.13.0** defines the static form hierarchy
+Published immutable erbas-contract **v0.14.0** defines the static form hierarchy
 and effective operation/action capabilities. The client formally consumes this
 release through `contract.revision`; .NET formally adopts the same release.
 See the [exact identity and alignment](full-stack-development.md#published-contract-adoption).
@@ -16,9 +16,9 @@ Improvements to shared MANY_TO_ONE controls, layouts or themes must benefit all
 resources using those patterns. This consolidation adds no renderers, themes,
 registry or field-level permissions. [RESOURCE-PRESENTATION-001](resource-presentation-001.md)
 now adds separate CREATE/EDIT/VIEW recommendations and LIST columns against the
-exact unpublished candidate, reusing these primitives without changing the v0.13.0 pin.
+same published v0.14.0 release, reusing these primitives.
 
-In v0.13.0, field presentation is static; CRUD capabilities, actions and navigation
+In v0.14.0, field presentation is static; CRUD capabilities, actions and navigation
 are effective per user/context. Field-level authorization is outside this version.
 There is no per-user hidden/read-only/editable/create-only/update-only field policy.
 Static readOnly, immutable and UI.Hidden/UI.FormExcluded retain their established
@@ -28,6 +28,8 @@ both effective Resource Runtime metadata and authoritative read/write enforcemen
 not merely a presentation flag or an Angular permission rule.
 
 ## Published adoption verification
+
+This section records historical v0.13.0 verification.
 
 Both existing live component proofs and the bounded Chromium procedure were rerun
 against .NET's formally adopted v0.13.0. See [published-adoption evidence](full-stack-development.md#published-adoption-verification)
@@ -142,10 +144,12 @@ permission definitions or production data.
 ### Real HTTP/component proof
 
 `presentation-live.proof.ts` is explicit opt-in, like the preceding runtime proof.
-Its current extension also requires the contextual endpoint and all four
-contexts from .NET `00d6de93450407e5709f1a7f44c673a11819c931`, validates identity,
+Its contextual extension requires the contextual endpoint and all four contexts,
+validates identity,
 rejects prior-session metadata and revalidates presentation for both identities.
-See [candidate status and current proof](resource-presentation-001.md). Earlier
+The historical proof used .NET `00d6de93450407e5709f1a7f44c673a11819c931`;
+the current adopting .NET revision is recorded in the release alignment above.
+See [published status and historical proof](resource-presentation-001.md). Earlier
 published-adoption evidence used the proof source at that stated revision.
 It uses existing Angular/Vitest/JSDOM, real HttpClient fetch through production
 Nginx and real .NET/PostgreSQL. It checks shared static fields/layout, admin edit,

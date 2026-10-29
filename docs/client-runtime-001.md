@@ -1,6 +1,6 @@
 # CLIENT-RUNTIME-001: effective navigation and primary generic CRUD
 
-This client formally consumes published immutable erbas-contract **v0.13.0**, as
+This client formally consumes published immutable erbas-contract **v0.14.0**, as
 recorded by `contract.revision`. The [release identity and backend alignment](full-stack-development.md#published-contract-adoption)
 include the exact annotated tag object, target commit and adopting .NET revision.
 No contract/backend implementation change is required for this client adoption.
@@ -16,12 +16,14 @@ features; navigation failure is reported without inventing a replacement menu.
 ## Contextual presentation extension
 
 [RESOURCE-PRESENTATION-001](resource-presentation-001.md) adds strict, separately
-cached LIST/CREATE/EDIT/VIEW recommendations against an exact unpublished candidate.
-It preserves this published pin, generic routing and backend query/authorization
+cached LIST/CREATE/EDIT/VIEW recommendations from this published release.
+It preserves generic routing and backend query/authorization
 semantics. Explicit forms select exact subsets; legacy form/field-order fallback
 continues only for absent contexts or the permitted legacy endpoint 404.
 
 ## Published adoption verification
+
+This section records historical v0.13.0 verification.
 
 Both existing live component proofs and the bounded Chromium procedure were rerun
 against .NET's formally adopted v0.13.0. See [published-adoption evidence](full-stack-development.md#published-adoption-verification)
@@ -82,7 +84,7 @@ JavaScript or TypeScript are generated/downloaded from metadata.
 
 ## Generic resource consumption
 
-Models in `resource-runtime/models.ts` mirror the published v0.13.0 shapes.
+Models in `resource-runtime/models.ts` mirror the published v0.14.0 shapes.
 RuntimeClient reads metadata, list pages, individual records, create/PATCH/delete,
 entity action availability and execution. Metadata is cached during the context;
 explicit `metadata(resource, true)` uses its ETag and conditional 304. Data pages
