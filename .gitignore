@@ -3,3 +3,4 @@ app/dist/
 app/.angular/
 .env
 *.log
+.openidea/
