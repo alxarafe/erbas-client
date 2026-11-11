@@ -10,8 +10,7 @@ import {
   inputBinding,
   viewChild,
 } from '@angular/core';
-import { ThemeArtifact } from '../theme/theme-definition';
-import { ThemeResolver, ThemeService } from '../theme/theme-runtime';
+import { ThemeArtifact, ThemeResolver, ThemeService } from '@alxarafe/ui-runtime';
 import { NavigationEntry, STRUCTURE_BINDINGS } from './shell-content';
 
 @Component({

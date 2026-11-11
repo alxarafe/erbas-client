@@ -8,8 +8,7 @@ import {
   inputBinding,
   viewChild,
 } from '@angular/core';
-import { ThemeArtifact } from '../theme/theme-definition';
-import { ThemeResolver } from '../theme/theme-runtime';
+import { ThemeArtifact, ThemeResolver } from '@alxarafe/ui-runtime';
 import { NavigationEntry, STRUCTURE_BINDINGS } from './shell-content';
 
 @Component({ selector: 'core-fe-navigation-outlet', templateUrl: './theme-navigation-outlet.html' })

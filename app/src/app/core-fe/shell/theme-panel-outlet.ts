@@ -8,8 +8,7 @@ import {
   inject,
   viewChild,
 } from '@angular/core';
-import { ThemeArtifact } from '../theme/theme-definition';
-import { ThemeResolver } from '../theme/theme-runtime';
+import { ThemeArtifact, ThemeResolver } from '@alxarafe/ui-runtime';
 
 @Component({ selector: 'core-fe-panel-outlet', templateUrl: './theme-panel-outlet.html' })
 export class ThemePanelOutlet {

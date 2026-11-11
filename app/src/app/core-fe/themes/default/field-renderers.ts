@@ -1,9 +1,5 @@
 import { Component, Directive, computed, input, output } from '@angular/core';
-import {
-  FieldRenderer,
-  FieldRendererContext,
-  FieldValue,
-} from '../../field-types/renderer-context';
+import { FieldRenderer, FieldRendererContext, FieldValue } from '@alxarafe/ui-runtime';
 
 @Directive()
 export abstract class FieldRendererBase implements FieldRenderer {

@@ -14,7 +14,7 @@ import {
   untracked,
 } from '@angular/core';
 import { ThemeShellOutlet } from './core-fe/shell/theme-shell-outlet';
-import { provideThemeRuntime } from './core-fe/theme/theme-runtime';
+import { provideThemeRuntime } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from './core-fe/themes/themes';
 import { NavigationEntry } from './core-fe/shell/shell-content';
 import { DatePipe } from '@angular/common';

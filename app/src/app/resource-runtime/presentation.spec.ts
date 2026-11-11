@@ -3,7 +3,7 @@ import { By } from '@angular/platform-browser';
 import { HttpStatusCode, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
-import { provideThemeRuntime } from '../core-fe/theme/theme-runtime';
+import { provideThemeRuntime } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from '../core-fe/themes/themes';
 import { ResourceForm } from './resource-form';
 import { ResourceScreen } from './resource-screen';

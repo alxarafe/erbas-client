@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { FieldArtifact, ThemeArtifact } from '../theme/theme-definition';
+import { FieldArtifact, ThemeArtifact } from '@alxarafe/ui-runtime';
 
 export interface NormalizedFieldType {
   readonly id: string;

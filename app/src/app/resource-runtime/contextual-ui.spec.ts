@@ -5,7 +5,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthSession } from '../auth-session';
 import { BackendSelection } from '../backend-selection';
-import { provideThemeRuntime } from '../core-fe/theme/theme-runtime';
+import { provideThemeRuntime } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from '../core-fe/themes/themes';
 import { RuntimeClient } from './runtime-client';
 import { ResourceScreen } from './resource-screen';

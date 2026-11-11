@@ -16,8 +16,8 @@ import {
   FieldRenderer,
   FieldRendererContext,
   FieldValue,
-} from './renderer-context';
-import { ThemeResolver } from '../theme/theme-runtime';
+  ThemeResolver,
+} from '@alxarafe/ui-runtime';
 
 @Component({ selector: 'core-fe-field-renderer', templateUrl: './field-renderer-outlet.html' })
 export class FieldRendererOutlet {

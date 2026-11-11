@@ -1,4 +1,4 @@
-import { FieldValue } from '../core-fe/field-types/renderer-context';
+import { FieldValue } from '@alxarafe/ui-runtime';
 import { ExactNumber, stringifyExact } from './exact-json';
 import { Field, Metadata, Parameter, Scalar } from './models';
 export function editable(field: Field, editing: boolean): boolean {

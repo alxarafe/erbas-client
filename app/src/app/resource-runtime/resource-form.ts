@@ -3,7 +3,7 @@ import { ResourceLayout } from './resource-layout';
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { Subscription, switchMap, map } from 'rxjs';
 import { FieldRendererOutlet } from '../core-fe/field-types/field-renderer-outlet';
-import { FieldValue } from '../core-fe/field-types/renderer-context';
+import { FieldValue } from '@alxarafe/ui-runtime';
 import {
   Action,
   Availability,

@@ -1,11 +1,15 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FieldRendererOutlet } from './field-renderer-outlet';
-import { FieldRendererContext, FieldValue } from './renderer-context';
+import {
+  FieldRendererContext,
+  FieldValue,
+  provideThemeRuntime,
+  ThemeService,
+} from '@alxarafe/ui-runtime';
 import { NORMALIZED_FIELD_TYPES } from './normalized-field-types';
 import { BUILTIN_THEMES } from '../themes/themes';
-import { provideThemeRuntime, ThemeService } from '../theme/theme-runtime';
-import { ThemeId } from '../theme/theme-definition';
+import { ThemeId } from '../themes/theme-ids';
 import { BOOLEAN_CHOICES } from '../themes/alternative/boolean-renderer';
 
 @Component({

@@ -1,4 +1,5 @@
-import { ThemeArtifact, ThemeArtifacts, ThemeDefinition, ThemeId } from '../theme/theme-definition';
+import { ThemeArtifact, ThemeArtifacts, ThemeDefinition } from '@alxarafe/ui-runtime';
+import { ThemeId } from './theme-ids';
 import { DefaultShell, DefaultNavigation, DefaultPanel } from './default/structure';
 import { CyberpunkShell, CyberpunkPanel } from './cyberpunk/structure';
 import { HighContrastPanel } from './high-contrast/panel';
