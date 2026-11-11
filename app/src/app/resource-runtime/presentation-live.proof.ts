@@ -9,7 +9,7 @@ import { AuthClient } from '../auth-client';
 import { UsersClient } from '../users-client';
 import { AuthSession } from '../auth-session';
 import { BackendSelection } from '../backend-selection';
-import { provideThemeRuntime } from '../core-fe/theme/theme-runtime';
+import { provideThemeRuntime } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from '../core-fe/themes/themes';
 import { RuntimeClient } from './runtime-client';
 import { ResourceScreen } from './resource-screen';

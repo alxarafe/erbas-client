@@ -6,6 +6,20 @@ Resource APIs; [CLIENT-RUNTIME-001](client-runtime-001.md) now provides that sep
 consumer using these compiled artifacts. Existing backend selection, Health, sessions,
 profile, users and assistant remain owned by App and their existing clients/services.
 
+## Package boundary (AUR-002B)
+
+`@alxarafe/ui-runtime@0.2.0` now owns theme definitions/artifact keys,
+ThemeRegistry, ThemeService, ThemeResolver, provideThemeRuntime and field renderer
+contracts. Consumers import these directly from the package public entry point;
+the former local implementations have been removed. Distribution and provenance
+are documented in [the vendored package record](../app/vendor/README.md).
+
+ERBAS owns its five theme IDs in `core-fe/themes/theme-ids.ts`, reusing the package's
+default ID. Theme catalogs, CSS, visual widgets, shell implementations, projection
+outlets, shell extensions and normalized semantic type descriptors remain in this
+application. There is one package registry/resolver, with no compatibility layer.
+Resource and backend contracts are unchanged.
+
 ## One-hop themes
 
 `ThemeDefinition` has an id, CSS class and sparse component overrides. ThemeRegistry
@@ -28,7 +42,7 @@ Ordinary Angular providers compose the catalog; tests use isolated provider inst
 Themes live in `app/src/app/core-fe/themes/`. Each has scoped theme.css; styles.css
 imports them at build time. Shared default tokens provide baseline colors/focus;
 active CSS class overrides tokens through ordinary CSS. There is no CSS parser,
-merging engine, database configuration or extra npm dependency.
+merging engine, database configuration or runtime stylesheet dependency.
 
 ## Actual reference inspection
 

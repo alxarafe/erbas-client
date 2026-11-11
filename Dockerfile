@@ -1,6 +1,7 @@
 FROM node:24.22.1-alpine3.24@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS dependencies
 WORKDIR /workspace
 COPY app/package*.json ./
+COPY app/vendor/ ./vendor/
 COPY docker/install-dependencies.mjs ./install-dependencies.mjs
 RUN npm install --global "$(node -p 'require("./package.json").packageManager')" \
     && node install-dependencies.mjs

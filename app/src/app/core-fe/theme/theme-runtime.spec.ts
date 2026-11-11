@@ -1,6 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { ThemeArtifact, ThemeDefinition, ThemeId, THEME_ARTIFACTS } from './theme-definition';
-import { provideThemeRuntime, ThemeRegistry, ThemeResolver, ThemeService } from './theme-runtime';
+import {
+  ThemeArtifact,
+  ThemeDefinition,
+  THEME_ARTIFACTS,
+  provideThemeRuntime,
+  ThemeRegistry,
+  ThemeResolver,
+  ThemeService,
+} from '@alxarafe/ui-runtime';
+import { ThemeId } from '../themes/theme-ids';
 import { BUILTIN_THEMES, DEFAULT_ARTIFACTS } from '../themes/themes';
 import { DefaultBooleanRenderer, DefaultStringRenderer } from '../themes/default/field-renderers';
 import { AlternativeBooleanRenderer } from '../themes/alternative/boolean-renderer';

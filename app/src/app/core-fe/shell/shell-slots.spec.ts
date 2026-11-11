@@ -8,9 +8,9 @@ import {
   ShellExtensionRegistry,
   ShellSlot,
 } from './shell-extensions';
-import { provideThemeRuntime, ThemeService } from '../theme/theme-runtime';
+import { provideThemeRuntime, ThemeService } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from '../themes/themes';
-import { ThemeId } from '../theme/theme-definition';
+import { ThemeId } from '../themes/theme-ids';
 
 @Component({
   selector: 'test-extension',

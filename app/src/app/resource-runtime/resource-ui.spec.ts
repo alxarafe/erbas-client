@@ -5,7 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { provideThemeRuntime } from '../core-fe/theme/theme-runtime';
+import { provideThemeRuntime } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from '../core-fe/themes/themes';
 import { DefaultNavigation } from '../core-fe/themes/default/structure';
 import { ResourceForm } from './resource-form';
