@@ -175,7 +175,7 @@ processes. A deployment-specific network configuration would be needed for those
 - `app/src/app/users-client.ts`: destination-neutral protected user operations with one closed User validator.
 - `app/src/app/ai-assistant-client.ts`: destination-neutral AI-001 invocation and closed response validation.
 - `app/src/app/app.*`: shared feature state/presentation and protected request cancellation.
-- `app/src/app/core-fe/`: normalized field types, compiled theme fallback, shell and typed slots.
+- `app/src/app/core-fe/`: normalized field adapters, shared theme composition and typed extension slots.
 - `Dockerfile`, `compose.yaml`, `docker/`: build, runtime proxy and isolated smoke fixtures.
 - `bin/`: lifecycle and validation workflows; `.github/workflows/ci.yml`: calls `bin/check`.
 

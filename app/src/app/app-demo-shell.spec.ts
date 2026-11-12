@@ -46,7 +46,7 @@ describe('CLIENT-DEMO-001 application composition', () => {
     await fixture.whenStable();
   }
   it('presents login alone and keeps backend diagnostics inside closed connection options', () => {
-    expect(page.querySelector('.login-shell .shell-heading h1')?.textContent).toBe('ERBAS');
+    expect(page.querySelector('.login-shell [aur-shell-heading] h1')?.textContent).toBe('ERBAS');
     expect(page.querySelector('.login-shell main .authentication')).not.toBeNull();
     expect(page.querySelector('#email')).not.toBeNull();
     expect(page.querySelector('#workspace')).toBeNull();
@@ -60,12 +60,12 @@ describe('CLIENT-DEMO-001 application composition', () => {
   });
   it('renders the real effective navigation, identity and restricted shell with secondary tools', async () => {
     await login();
-    expect(page.querySelector('.application-shell .shell-heading .identity')).not.toBeNull();
+    expect(page.querySelector('.application-shell [aur-shell-heading] .identity')).not.toBeNull();
     expect(page.querySelector('.application-shell main #workspace')).not.toBeNull();
     expect(page.querySelector('#email')).toBeNull();
     expect(page.querySelector('.identity')?.textContent).toBe(profile.email);
-    expect(page.querySelector('.shell-navigation')?.textContent).toContain('Register');
-    expect(page.querySelector('.shell-navigation a')?.getAttribute('href')).toContain(
+    expect(page.querySelector('aur-theme-navigation')?.textContent).toContain('Register');
+    expect(page.querySelector('aur-theme-navigation a')?.getAttribute('href')).toContain(
       '/resources/',
     );
     expect(page.querySelector('#create-user')).toBeNull();

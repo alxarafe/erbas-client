@@ -1,6 +1,9 @@
-<core-fe-shell-outlet
+<app-shell-extension-regions #extensions="shellRegions" />
+<aur-theme-shell
   [class.login-shell]="!authenticated()"
   [class.application-shell]="authenticated()"
+  [regions]="extensions.regions()"
+  [linkActivation]="activateLink"
   [heading]="heading"
   [content]="content"
   [navigation]="authenticated() ? navigation() : []"

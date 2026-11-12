@@ -1,0 +1,32 @@
+{
+  "sourceRepository": "https://github.com/alxarafe/angular-ui-runtime",
+  "sourceCommit": "ee60123d03f095a14c4004632c214dbd822332c2",
+  "sourceStatus": "",
+  "command": "./bin/pack",
+  "archives": [
+    {
+      "archive": "alxarafe-ui-runtime-0.3.0-alpha.3.tgz",
+      "sha256": "8b07a27d640bec08a619c893556d91d11ca6a458d699526e048c469fd585913b"
+    },
+    {
+      "archive": "alxarafe-ui-theme-alternative-0.1.0-alpha.3.tgz",
+      "sha256": "f225f89bb8f36dece6efce043143fb83ec95962237c702efc34aa415616690bf"
+    },
+    {
+      "archive": "alxarafe-ui-theme-cyberpunk-0.1.0-alpha.3.tgz",
+      "sha256": "7a104f6247f94ac3c8e0bb689bb8ece4d61f4f04f1e92925b0497a445472f82b"
+    },
+    {
+      "archive": "alxarafe-ui-theme-default-0.1.0-alpha.3.tgz",
+      "sha256": "ed4c3e8feeaa3479e19355aa5f0c70a097b8f76f2ca1fb519074f6c83349757d"
+    },
+    {
+      "archive": "alxarafe-ui-theme-high-contrast-0.1.0-alpha.3.tgz",
+      "sha256": "b8d7816b5cc16d1c0eac35d87e122747213deaf97115d1156b95a17be1ac0881"
+    },
+    {
+      "archive": "alxarafe-ui-theme-vintage-0.1.0-alpha.3.tgz",
+      "sha256": "005bf7392e7af9b11fb0617132ab73d8b4f9ef2dd7d0c95192ff53c84ad90a6a"
+    }
+  ]
+}

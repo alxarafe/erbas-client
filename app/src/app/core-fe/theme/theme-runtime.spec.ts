@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   ThemeArtifact,
   ThemeDefinition,
+  ThemeArtifacts,
   THEME_ARTIFACTS,
   provideThemeRuntime,
   ThemeRegistry,
@@ -10,11 +11,11 @@ import {
 } from '@alxarafe/ui-runtime';
 import { ThemeId } from '../themes/theme-ids';
 import { BUILTIN_THEMES, DEFAULT_ARTIFACTS } from '../themes/themes';
-import { DefaultBooleanRenderer, DefaultStringRenderer } from '../themes/default/field-renderers';
-import { AlternativeBooleanRenderer } from '../themes/alternative/boolean-renderer';
-import { HighContrastPanel } from '../themes/high-contrast/panel';
-import { DefaultShell, DefaultNavigation } from '../themes/default/structure';
-import { CyberpunkShell } from '../themes/cyberpunk/structure';
+import { DefaultBooleanRenderer, DefaultStringRenderer } from '@alxarafe/ui-theme-default';
+import { AlternativeBooleanRenderer } from '@alxarafe/ui-theme-alternative';
+import { HighContrastPanel } from '@alxarafe/ui-theme-high-contrast';
+import { DefaultShell, DefaultNavigation } from '@alxarafe/ui-theme-default';
+import { CyberpunkShell } from '@alxarafe/ui-theme-cyberpunk';
 import { NormalizedFieldTypeRegistry } from '../field-types/normalized-field-types';
 
 const CSS_ONLY: ThemeDefinition = { id: 'css-only', cssClass: 'theme-css-only', overrides: {} };
@@ -93,7 +94,11 @@ describe('Theme runtime', () => {
     );
   });
   it('captures immutable definitions rather than retaining mutable registration state', () => {
-    const source = {
+    const source: {
+      id: string;
+      cssClass: string;
+      overrides: { -readonly [K in keyof ThemeArtifacts]?: ThemeArtifacts[K] };
+    } = {
       id: CSS_ONLY.id,
       cssClass: CSS_ONLY.cssClass,
       overrides: { [ThemeArtifact.FieldBoolean]: DefaultBooleanRenderer },

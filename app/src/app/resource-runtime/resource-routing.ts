@@ -15,9 +15,10 @@ export function resourceComponent(
 ): Type<unknown> {
   return Object.hasOwn(registry, resource) ? registry[resource]! : ResourceScreen;
 }
+export const RESOURCE_ROUTE_ROOT = 'resources';
 export function targetUrl(target: Target): string {
   return target.type === 'RESOURCE'
-    ? '/resources/' + encodeURIComponent(target.resource)
+    ? '/' + RESOURCE_ROUTE_ROOT + '/' + encodeURIComponent(target.resource)
     : target.route;
 }
 @Component({
@@ -40,7 +41,7 @@ export class RouteNotFound {}
 @Component({ selector: 'app-home-route', template: '' })
 export class HomeRoute {}
 export const APP_ROUTES: Routes = [
-  { path: 'resources/:resource', component: ResourceHost },
+  { path: RESOURCE_ROUTE_ROOT + '/:resource', component: ResourceHost },
   { path: '', pathMatch: 'full', component: HomeRoute },
   { path: '**', component: RouteNotFound },
 ];

@@ -9,10 +9,11 @@ contract, permission, dataset, AI tool or backend implementation.
 
 ## Composition
 
-The existing `core-fe/shell` and theme resolver still own the shell, navigation,
-panel and extension slots. App projects stable heading/content wrappers containing
-the pre-authentication or authenticated composition; it does not introduce a
-parallel shell or registry. Existing sparse themes and their behavior tests remain.
+The shared Angular UI Runtime and independent theme packages now own the shell,
+navigation and panel. ERBAS retains its typed extension registry and projects its
+contributions through public shell regions. App supplies stable heading/content
+templates containing the pre-authentication or authenticated composition. See
+[the current theme architecture](core-fe-theme-runtime.md).
 
 Before authentication, the main surface contains ERBAS identity, product text,
 email/password, Sign in and announced authentication feedback. Closed **Connection
