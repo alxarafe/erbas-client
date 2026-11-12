@@ -7,7 +7,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideThemeRuntime } from '@alxarafe/ui-runtime';
 import { BUILTIN_THEMES } from '../core-fe/themes/themes';
-import { DefaultNavigation } from '../core-fe/themes/default/structure';
+import { DefaultNavigation } from '@alxarafe/ui-theme-default';
 import { ResourceForm } from './resource-form';
 import { ResourceScreen } from './resource-screen';
 import { RuntimeClient } from './runtime-client';
@@ -67,7 +67,6 @@ describe('Compiled generic screens and menu', () => {
         ...item,
         children: item.children.map((child) => ({
           ...child,
-          applicationRoute: true,
           href: targetUrl(child.target!),
         })),
       })),
@@ -75,7 +74,7 @@ describe('Compiled generic screens and menu', () => {
     await fixture.whenStable();
     const page = fixture.nativeElement as HTMLElement;
     expect(page.textContent).toContain('Application');
-    expect(page.querySelector('nav nav a')?.getAttribute('href')).toBe('/resources/' + R);
+    expect(page.querySelector('nav ul ul a')?.getAttribute('href')).toBe('/resources/' + R);
     const links = page.querySelectorAll('a');
     expect(links[1]?.getAttribute('href')).toBe('/');
   });

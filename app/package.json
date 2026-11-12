@@ -12,14 +12,19 @@
   "private": true,
   "packageManager": "npm@11.19.0",
   "dependencies": {
-    "@alxarafe/ui-runtime": "file:vendor/alxarafe-ui-runtime-0.2.0.tgz",
+    "@alxarafe/ui-runtime": "file:vendor/alxarafe-ui-runtime-0.3.0-alpha.3.tgz",
     "@angular/common": "^22.2.0",
     "@angular/compiler": "^22.2.0",
     "@angular/core": "^22.2.0",
     "@angular/platform-browser": "^22.2.0",
     "@angular/router": "22.2.2",
     "rxjs": "~7.8.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "@alxarafe/ui-theme-alternative": "file:vendor/alxarafe-ui-theme-alternative-0.1.0-alpha.3.tgz",
+    "@alxarafe/ui-theme-cyberpunk": "file:vendor/alxarafe-ui-theme-cyberpunk-0.1.0-alpha.3.tgz",
+    "@alxarafe/ui-theme-default": "file:vendor/alxarafe-ui-theme-default-0.1.0-alpha.3.tgz",
+    "@alxarafe/ui-theme-high-contrast": "file:vendor/alxarafe-ui-theme-high-contrast-0.1.0-alpha.3.tgz",
+    "@alxarafe/ui-theme-vintage": "file:vendor/alxarafe-ui-theme-vintage-0.1.0-alpha.3.tgz"
   },
   "devDependencies": {
     "@angular/build": "^22.2.2",

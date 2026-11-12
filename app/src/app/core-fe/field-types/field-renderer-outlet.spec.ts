@@ -10,7 +10,7 @@ import {
 import { NORMALIZED_FIELD_TYPES } from './normalized-field-types';
 import { BUILTIN_THEMES } from '../themes/themes';
 import { ThemeId } from '../themes/theme-ids';
-import { BOOLEAN_CHOICES } from '../themes/alternative/boolean-renderer';
+import { BOOLEAN_CHOICES } from '@alxarafe/ui-theme-alternative';
 
 @Component({
   imports: [FieldRendererOutlet],

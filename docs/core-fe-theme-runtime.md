@@ -1,4 +1,77 @@
-# Core FE theme runtime and shell slots
+# Shared theme runtime and ERBAS presentation adapters
+
+AUR-INTEGRATION-002 consumes `@alxarafe/ui-runtime@0.3.0-alpha.3` and five independent
+`@alxarafe/ui-theme-*` packages at `0.1.0-alpha.3`, each with an exact runtime peer.
+The archives come from clean provider commit
+`ee60123d03f095a14c4004632c214dbd822332c2` using its official `./bin/pack`.
+See [archive provenance and hashes](../app/vendor/README.md).
+
+## Current ownership
+
+`provideThemeRuntime(BUILTIN_THEMES)` registers the public Default, Alternative,
+Cyberpunk, Vintage and High Contrast definitions in one runtime registry/resolver.
+`aur-theme-shell` owns stable heading/content/region wrappers; its shared navigation
+and panel outlets resolve packaged components. CSS comes from each package's public
+`theme.css` export, Default first. Local visual shells, navigation, panels, field
+renderers and theme CSS have been removed. There is no parallel presentation engine.
+
+ERBAS retains the 17 normalized semantic descriptors and `FieldRendererOutlet`,
+which maps backend semantic types to public runtime artifacts and forwards context
+and value events. CRUD interpretation, exact numeric/temporal values, relationships,
+validation and errors stay in the resource consumer. Application/login/Assistant and
+generic resource styles stay in ERBAS global/component CSS. Default is complete;
+Alternative replaces BOOLEAN, Cyberpunk shell/panel, High Contrast panel, and
+Vintage only CSS. Sparse and unknown selections fall back directly to Default.
+
+`ShellExtensionRegistry` still validates typed slots and snapshots contributions in
+priority/ID order. `ShellExtensionRegions` supplies stable templates only for slots
+with contributions; `ShellSlotOutlet` instantiates their components. All nine slots
+map to the same public region names. No empty region reserves a Cyberpunk rail.
+The runtime retains region views and their DOM/focus across structural theme
+changes; extension instances do not belong to replaceable visual shells.
+
+## Navigation boundary
+
+App projects the effective validated `RuntimeClient.navigation()` tree in backend
+order to `ThemeNavigationItem[]`. RESOURCE targets use `targetUrl`; ROUTE targets
+retain validated application paths. `Location.prepareExternalUrl` applies deployment
+base paths to anchor hrefs. Backend icon metadata remains in RuntimeClient but is
+not rendered by this presentation contract. Groups remain labels with child lists.
+
+The public synchronous `linkActivation` callback resolves the current backend item
+by ID and checks the exact prepared href. It intercepts only installed home/resource
+routes, calls `preventDefault()` before Router work, and delegates to
+`Router.navigateByUrl`. Failed/rejected navigation does not fall back to a page
+reload. External, unknown, modified, non-self-target and download links retain
+native HTML behavior. The runtime's `activateThemeLink` is neither copied nor changed.
+`NavigationEnd` invalidates `current` state for programmatic and history navigation,
+so packaged navigation exposes `aria-current="page"`.
+
+Existing resource forms track pending edits, but ERBAS has no universal router
+`CanDeactivate` guard or global dirty-state protection. This adoption adds neither;
+switching themes preserves draft views, while navigation can still discard edits.
+Presentation visibility does not replace backend authorization. Contract revision,
+backend protocols, resource screen overrides and session/cancellation behavior stay
+unchanged. No Java support beyond its documented adoption is implied.
+
+## Validation and limits
+
+Component tests exercise installed package artifacts, all five themes/fallback,
+native field events and exact values, every extension slot, ordering, DOM identity,
+draft/focus retention in both theme directions, empty regions, SPA cancellation,
+modified links, rejected guards and reactive current state including Back/Forward.
+Existing resource, relationship, contextual layout and feature tests remain required.
+`./bin/test` and `./bin/check` remain the mandatory Docker consumer validations;
+provider packaging alone does not establish consumer acceptance. See [the verification report](qa/aur-integration-002.md) for consumer results,
+archive comparison and the outstanding desktop/mobile visual review limitation.
+
+---
+
+## Historical implementation before AUR-INTEGRATION-002
+
+The following record describes the former local visual artifacts and the earlier
+runtime-only 0.2.0 adoption. Paths and ownership below are historical, not current.
+
 
 CORE-FE-THEME-RUNTIME-001 supplies compiled Angular theme artifacts, normalized field
 type objects and typed shell extension slots. The theme layer does not consume

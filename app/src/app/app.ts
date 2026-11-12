@@ -1,6 +1,7 @@
-import { RouterOutlet } from '@angular/router';
+import { NavigationEnd, PRIMARY_OUTLET, Router, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { RuntimeClient, failureMessage } from './resource-runtime/runtime-client';
-import { targetUrl } from './resource-runtime/resource-routing';
+import { RESOURCE_ROUTE_ROOT, targetUrl } from './resource-runtime/resource-routing';
 import { NavigationItem } from './resource-runtime/models';
 import {
   Component,
@@ -13,13 +14,17 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { ThemeShellOutlet } from './core-fe/shell/theme-shell-outlet';
-import { provideThemeRuntime } from '@alxarafe/ui-runtime';
+import {
+  ThemeShellOutlet,
+  ThemeNavigationItem,
+  ThemeLinkActivationHandler,
+  provideThemeRuntime,
+} from '@alxarafe/ui-runtime';
+import { ShellExtensionRegions } from './core-fe/shell/shell-extension-regions';
 import { BUILTIN_THEMES } from './core-fe/themes/themes';
-import { NavigationEntry } from './core-fe/shell/shell-content';
-import { DatePipe } from '@angular/common';
+import { DatePipe, Location } from '@angular/common';
 import { HttpClient, HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
-import { Subscription, finalize } from 'rxjs';
+import { Subscription, filter, finalize } from 'rxjs';
 import { BACKENDS } from './backends';
 import { BackendSelection } from './backend-selection';
 import { HealthClient } from './health-client';
@@ -65,7 +70,7 @@ type LoginState =
 
 @Component({
   selector: 'app-root',
-  imports: [DatePipe, ThemeShellOutlet, RouterOutlet],
+  imports: [DatePipe, ThemeShellOutlet, RouterOutlet, ShellExtensionRegions],
   providers: [provideThemeRuntime(BUILTIN_THEMES)],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -73,18 +78,60 @@ type LoginState =
 export class App {
   readonly runtime = inject(RuntimeClient);
   readonly runtimeFailureMessage = failureMessage;
-  readonly navigation = computed<readonly NavigationEntry[]>(() => {
-    function entries(items: NavigationItem[]): NavigationEntry[] {
-      return items.map((item) => ({
-        id: item.id,
-        label: item.label,
-        children: entries(item.children),
-        ...(item.target ? { href: targetUrl(item.target), applicationRoute: true } : {}),
-        ...(item.icon ? { icon: item.icon } : {}),
-      }));
-    }
+  private readonly router = inject(Router);
+  private readonly location = inject(Location);
+  private readonly navigationEnd = toSignal(
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)),
+  );
+  readonly navigation = computed<readonly ThemeNavigationItem[]>(() => {
+    this.navigationEnd();
+    const entries = (items: readonly NavigationItem[]): ThemeNavigationItem[] =>
+      items.map((item) => {
+        const route = item.target ? targetUrl(item.target) : undefined;
+        return {
+          id: item.id,
+          label: item.label,
+          children: entries(item.children),
+          ...(route
+            ? {
+                href: this.location.prepareExternalUrl(route),
+                current: this.router.isActive(route, {
+                  paths: 'exact',
+                  queryParams: 'ignored',
+                  fragment: 'ignored',
+                  matrixParams: 'ignored',
+                }),
+              }
+            : {}),
+        };
+      });
     return entries(this.runtime.navigation()?.items ?? []);
   });
+  readonly activateLink: ThemeLinkActivationHandler = (activation) => {
+    // Resolve against the current authorized tree, never route arbitrary supplied hrefs.
+    const find = (items: readonly NavigationItem[]): NavigationItem | undefined => {
+      for (const item of items) {
+        if (item.id === activation.itemId) return item;
+        const child = find(item.children);
+        if (child) return child;
+      }
+      return undefined;
+    };
+    const item = find(this.runtime.navigation()?.items ?? []);
+    if (!item?.target) return;
+    const route = targetUrl(item.target);
+    if (activation.href !== this.location.prepareExternalUrl(route)) return;
+    const tree = this.router.parseUrl(route);
+    // The wildcard is an uninstalled page, not a managed application route.
+    const primary = tree.root.children[PRIMARY_OUTLET]?.segments ?? [];
+    const managed =
+      primary.length === 0 || (primary.length === 2 && primary[0]?.path === RESOURCE_ROUTE_ROOT);
+    if (!managed) return;
+    activation.preventDefault();
+    void this.router.navigateByUrl(tree).catch(() => {
+      // Rejected navigation stays in the SPA; the router/consumer owns its outcome.
+    });
+  };
   readonly backends = BACKENDS;
   readonly demoDefaults = signal<DemoDefaults | null>(null);
   readonly selection = inject(BackendSelection);

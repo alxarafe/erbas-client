@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ThemeShellOutlet } from './theme-shell-outlet';
+import { ThemeShellOutlet } from '@alxarafe/ui-runtime';
+import { ShellExtensionRegions } from './shell-extension-regions';
 import {
   provideShellExtensions,
   SHELL_SLOTS,
@@ -24,8 +25,10 @@ class B {}
 @Component({ selector: 'test-c', template: '<span>C</span>' })
 class C {}
 @Component({
-  imports: [ThemeShellOutlet],
-  template: ` <core-fe-shell-outlet
+  imports: [ThemeShellOutlet, ShellExtensionRegions],
+  template: ` <app-shell-extension-regions #extensions="shellRegions" />
+    <aur-theme-shell
+      [regions]="extensions.regions()"
       [heading]="heading"
       [content]="content"
       [footer]="footer"
@@ -68,20 +71,18 @@ describe('Compiled shell slots', () => {
     expect(page.querySelector('h1')?.textContent).toBe('Application');
     expect(page.querySelector('#feature-footer')?.textContent).toBe('Application footer');
     expect(page.querySelector('nav a')?.getAttribute('href')).toBe('#draft');
-    expect(page.querySelector('core-fe-shell-outlet')?.classList.contains(`theme-${theme}`)).toBe(
-      true,
-    );
+    expect(page.querySelector('aur-theme-shell')?.classList.contains(`theme-${theme}`)).toBe(true);
   });
   it('keeps the shell and contributions mounted for CSS-only Vintage changes', async () => {
     configure();
     const fixture = TestBed.createComponent(Harness);
     await fixture.whenStable();
     const page = fixture.nativeElement as HTMLElement;
-    const shell = page.querySelector('core-fe-default-shell');
+    const shell = page.querySelector('aur-default-shell');
     const contribution = page.querySelector(`[data-shell-slot="${ShellSlot.Footer}"] .probe`);
     TestBed.inject(ThemeService).activate(ThemeId.Vintage);
     await fixture.whenStable();
-    expect(page.querySelector('core-fe-default-shell')).toBe(shell);
+    expect(page.querySelector('aur-default-shell')).toBe(shell);
     expect(page.querySelector(`[data-shell-slot="${ShellSlot.Footer}"] .probe`)).toBe(contribution);
   });
   it('changes structure/slot location without recreating application content', async () => {
@@ -101,20 +102,56 @@ describe('Compiled shell slots', () => {
     expect(page.querySelector('#increment')?.textContent).toContain('Count 1');
     expect(
       page.querySelector(
-        `header .cyber-tools [data-shell-slot="${ShellSlot.FloatingActions}"] .probe`,
+        ` .aur-cyberpunk-tools [data-shell-slot="${ShellSlot.FloatingActions}"] .probe`,
       ),
     ).not.toBeNull();
     expect(
-      page.querySelector('.cyber-workspace aside core-fe-default-navigation nav ul'),
+      page.querySelector('.aur-cyberpunk-workspace aside aur-default-navigation nav ul'),
     ).not.toBeNull();
-    expect(page.querySelector('.cyber-panel-content #draft')).toBe(draft);
+    expect(page.querySelector('.aur-cyberpunk-panel #draft')).toBe(draft);
     themes.activate(ThemeId.Default);
     await fixture.whenStable();
     expect(page.querySelector('#draft')).toBe(draft);
     expect(
-      page.querySelector(`.shell-floating [data-shell-slot="${ShellSlot.FloatingActions}"] .probe`),
+      page.querySelector(
+        `.aur-default-tools [data-shell-slot="${ShellSlot.FloatingActions}"] .probe`,
+      ),
     ).not.toBeNull();
     expect(page.querySelector('nav ul')).not.toBeNull();
+  });
+  it('omits empty regions, including the optional Cyberpunk rail', async () => {
+    configure([]);
+    const fixture = TestBed.createComponent(Harness);
+    TestBed.inject(ThemeService).activate(ThemeId.Cyberpunk);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[aur-theme-region]')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.aur-cyberpunk-tools [aur-theme-region]'),
+    ).toBeNull();
+  });
+  it('retains extension instances, draft DOM and focus across every theme in both directions', async () => {
+    configure();
+    const fixture = TestBed.createComponent(Harness);
+    await fixture.whenStable();
+    const page = fixture.nativeElement as HTMLElement;
+    const draft = page.querySelector<HTMLInputElement>('#draft')!;
+    draft.value = 'Pending edits';
+    draft.focus();
+    const nodes = SHELL_SLOTS.map((slot) =>
+      page.querySelector(`[data-shell-slot="${slot}"] .probe`),
+    );
+    const themes = Object.values(ThemeId);
+    for (const theme of [...themes, ...[...themes].reverse()]) {
+      TestBed.inject(ThemeService).activate(theme);
+      await fixture.whenStable();
+      expect(page.querySelector('#draft')).toBe(draft);
+      expect(draft.value).toBe('Pending edits');
+      expect(document.activeElement).toBe(draft);
+      for (const [index, slot] of SHELL_SLOTS.entries()) {
+        expect(page.querySelectorAll(`[data-shell-slot="${slot}"] .probe`)).toHaveLength(1);
+        expect(page.querySelector(`[data-shell-slot="${slot}"] .probe`)).toBe(nodes[index]);
+      }
+    }
   });
   it('orders contributions by priority then stable ID, independently of registration order', async () => {
     configure([
