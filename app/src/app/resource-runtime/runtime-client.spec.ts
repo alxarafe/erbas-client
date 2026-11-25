@@ -5,7 +5,7 @@ import { RuntimeClient, RuntimeFailure, failureMessage } from './runtime-client'
 import { AuthSession } from '../auth-session';
 import { BackendSelection } from '../backend-selection';
 import { ExactNumber, parseExact, stringifyExact } from './exact-json';
-import { RESOURCE_PROTOCOL as P, Query } from './models';
+import { RESOURCE_PROTOCOL as P, Query, Row } from './models';
 import {
   fixtureMetadata,
   fixtureNavigation,
@@ -51,7 +51,11 @@ describe('External generic protocol transport and context cache', () => {
     client.revalidateNavigation();
     const request = http.expectOne(base + P.navigation);
     expect(request.request.headers.get(P.conditional)).toBe(TEST_ETAG);
-    request.flush('', { status: HttpStatusCode.NotModified, statusText: 'Not Modified', headers });
+    request.flush('', {
+      status: HttpStatusCode.NotModified,
+      statusText: 'Not Modified',
+      headers,
+    });
     TestBed.tick();
     expect(client.navigation()).toBe(previous);
   });
@@ -141,12 +145,48 @@ describe('External generic protocol transport and context cache', () => {
     expect(req.request.body).toBe('{"amount":' + exact + ',"day":"2026-10-26"}');
     req.flush(req.request.body, { headers });
   });
+  it('preserves exact scalar values and value presence through POST and GET', () => {
+    ready();
+    const wire = '{"id":"created","amount":9007199254740993,"text":"","active":false,"notes":null}';
+    const body = parseExact(wire) as Row;
+    client.save(R, body).subscribe((value) => expect(stringifyExact(value)).toBe(wire));
+    const created = http.expectOne(base + P.records + '/' + R);
+    expect(created.request.method).toBe('POST');
+    expect(created.request.body).toBe(wire);
+    created.flush(wire, {
+      headers,
+      status: HttpStatusCode.Created,
+      statusText: 'Created',
+    });
+    client.get(R, 'created').subscribe((value) => {
+      expect(stringifyExact(value)).toBe(wire);
+      expect(Object.hasOwn(value, 'absent')).toBe(false);
+    });
+    http.expectOne(base + P.records + '/' + R + '/created').flush(wire, { headers });
+  });
+  it('deletes an encoded opaque identifier and completes on no content', () => {
+    ready();
+    let completed = false;
+    client.delete(R, 'opaque /?#').subscribe({ complete: () => (completed = true) });
+    const request = http.expectOne(base + P.records + '/' + R + '/opaque%20%2F%3F%23');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, {
+      status: HttpStatusCode.NoContent,
+      statusText: 'No Content',
+    });
+    expect(completed).toBe(true);
+  });
   it('discovers contextual entity availability and executes a typed target with parameters', () => {
     ready();
     client.availability(R, 'abc').subscribe((states) => expect(states[0]?.available).toBe(true));
     let req = http.expectOne(base + P.actions + '/' + R + '/availability');
-    expect(JSON.parse(req.request.body)).toEqual({ scope: 'ENTITY', id: 'abc' });
-    req.flush('[{"name":"finish","authorized":true,"available":true}]', { headers });
+    expect(JSON.parse(req.request.body)).toEqual({
+      scope: 'ENTITY',
+      id: 'abc',
+    });
+    req.flush('[{"name":"finish","authorized":true,"available":true}]', {
+      headers,
+    });
     client.execute(R, 'finish', 'abc', { reason: 'Done' }).subscribe();
     req = http.expectOne(base + P.actions + '/' + R + '/finish/execute');
     expect(JSON.parse(req.request.body)).toEqual({
@@ -191,6 +231,11 @@ describe('External generic protocol transport and context cache', () => {
   });
 });
 describe('Lossless JSON boundaries', () => {
+  it('round-trips nested JSON with exact numbers, empty containers, null and escaped text', () => {
+    const wire =
+      '{"payload":{"n":9007199254740993.0001,"items":[null,"",false,{},[]]},"text":"line\\nquote\\\""}';
+    expect(stringifyExact(parseExact(wire))).toBe(wire);
+  });
   it.each(['0', '-0', '123456789012345678901234567890.123456789', '1e-4096'])(
     'preserves numeric lexeme %s',
     (token) => {

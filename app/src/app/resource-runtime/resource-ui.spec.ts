@@ -291,6 +291,27 @@ describe('Compiled generic screens and menu', () => {
     fixture.componentInstance.submit(new Event('submit'));
     expect(payload).toEqual({ name: 'After', notes: null });
   });
+  it('omits reverted edits and untouched absent/default values while preserving empty and null', () => {
+    const fixture = form({ id: 'one', code: 'ABC', name: 'Before', notes: null });
+    const component = fixture.componentInstance;
+    const submitted: Row[] = [];
+    component.submitted.subscribe((value) => submitted.push(value));
+    expect(component.values()['active']).toBe(true);
+    expect(component.values()['notes']).toBeNull();
+    component.change('name', 'Temporary');
+    component.change('name', 'Before');
+    component.submit(new Event('submit'));
+    expect(submitted).toEqual([]);
+    component.change('notes', '');
+    component.submit(new Event('submit'));
+    expect(submitted).toEqual([{ notes: '' }]);
+    component.change('notes', null);
+    component.change('name', 'After');
+    component.submit(new Event('submit'));
+    expect(submitted[1]).toEqual({ name: 'After' });
+    expect(Object.hasOwn(submitted[1]!, 'active')).toBe(false);
+    expect(Object.hasOwn(submitted[1]!, 'amount')).toBe(false);
+  });
   it('retains exact DECIMAL and date-only values in compiled controls and submitted payload', () => {
     const fixture = form();
     const exact = '12345678901234567890.123456789012345678';
